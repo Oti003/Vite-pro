@@ -115,7 +115,7 @@ function HouseCard({ house, user, savedIds, setSavedIds }) {
         <h3 style={titleStyle}>{house.title}</h3>
 
         <p style={amenitiesStyle}>
-          {house.amenities?.join(" • ")}
+          Amenities: {house.amenities?.join(" • ")}
         </p>
 
         <p style={priceStyle}>

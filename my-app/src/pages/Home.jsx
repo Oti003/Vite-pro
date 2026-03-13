@@ -6,7 +6,7 @@ import HeroImage from "../assets/Hero_Image.jpg"
 
 
 function Home({ user }) {
-  const limit = 9
+  const limit = 16
   const fetchingRef = useRef(false)
 
   const [scrolled, setScrolled] = useState(false)

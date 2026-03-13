@@ -120,22 +120,31 @@ function LandlordDashboard({ user }) {
 
     let imageUrls = []
 
+
+    // Only upload images when creating a new listing
+
     if (!editingId) {
-      if (images.length < 4) {
-        alert("Upload at least 4 images")
+      if (images.length < 6) {
+        alert("Upload at least 6 images")
         return
       }
 
-      if (images.length > 5) {
-        alert("Maximum 5 images allowed")
+      if (images.length > 12) {
+        alert("Maximum 12 images allowed")
         return
       }
 
       const uploaded = await uploadImages()
-      if (!uploaded) return
+
+      if (!uploaded){
+        alert("Image upload failed. Please try again.")
+      return
+      }
+
       imageUrls = uploaded
     }
 
+    //UPDATE EXISTING LISTING
     if (editingId) {
       const { error } = await supabase
         .from("houses")
@@ -153,17 +162,19 @@ function LandlordDashboard({ user }) {
         .eq("user_id", user.id)
 
       if (error) {
-  console.log("UPDATE ERROR:", error)
-  alert(error.message)
-  return
-}
+        console.log("UPDATE ERROR:", error)
+        alert(error.message)
+        return
+      }
 
       setEditingId(null)
     } else {
+      // CREATE NEW LISTING
       const { error } = await supabase
         .from("houses")
         
-          .insert({
+          .insert([
+          {
           title,
           location,
           price: parseInt(price),
@@ -174,9 +185,11 @@ function LandlordDashboard({ user }) {
           image_urls: imageUrls,
           rental_type: rentalType,
           status: "available"
-        })
+        }
+      ])
 
       if (error) {
+        console.log("INSERT ERROR:", error)
         alert("Error creating listing")
         return
       }
@@ -353,11 +366,14 @@ function LandlordDashboard({ user }) {
 
                 setImages(prev => {
                   const combined = [...prev, ...newFiles]
-                  return combined.slice(0, 5)
+                  return combined.slice(0, 10)
                 })
               }}
               style={{ marginTop: "10px" }}
             />
+            <p style={{ fontSize: "13px", color: "#555" }}>
+              Maximum 10 images per listing
+            </p>
 
             <div
               style={{

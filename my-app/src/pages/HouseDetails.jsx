@@ -90,7 +90,7 @@ function HouseDetails({user}) {
           )}
 
           <div style={sideGrid}>
-            {images.slice(1, 5).map((img, index) => (
+            {images.slice(1, 12).map((img, index) => (
               <img
                 key={index}
                 src={img}
@@ -131,7 +131,7 @@ function HouseDetails({user}) {
           {/* AMENITIES */}
           <div style={{ marginTop: "30px" }}>
             <h3>Amenities</h3>
-            <p>{house.amenities || "No amenities listed."}</p>
+            <p>{house.amenities?.join(" • ") || "No amenities listed."}</p>
           </div>
 
           {/* PROPERTY DESCRIPTION */}
