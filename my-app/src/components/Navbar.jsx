@@ -9,7 +9,7 @@ function Navbar({ user }) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const dropdownRef = useRef(null)
-
+  const ADMIN_EMAIL = "silymily003@gmail.com"
 
   useEffect(() => {
     function handleScroll() {
@@ -60,7 +60,7 @@ function Navbar({ user }) {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-
+        marginBottom: "20px",
         backdropFilter: scrolled ? "none" : "blur(14px)",
 
         backgroundColor: scrolled
@@ -185,8 +185,25 @@ function Navbar({ user }) {
                   color: "#c0392b"
                 }}
               >
-                Sign Out
-              </button>
+               log Out
+              </button> 
+
+               {user?.email === ADMIN_EMAIL && (
+                <button onClick={() => navigate("/Admin")}
+                 style={{
+                  padding: "8px",
+                  border: "none",
+                  background: "#ffeaea",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  color: "#287ee1"
+                }}
+                >
+                  Admin
+                </button>
+              )}
+              
+              
 
             </div>
           )}

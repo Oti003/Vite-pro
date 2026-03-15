@@ -19,12 +19,12 @@ function Home({ user }) {
   const [locationFilter, setLocationFilter] = useState("")
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
-  const [amenitiesFilter, setAmenitiesFilter] = useState("")
+  const [bedroomsFilter, setBedroomsFilter] = useState("")
 
   const [debouncedLocation, setDebouncedLocation] = useState("")
   const [debouncedMinPrice, setDebouncedMinPrice] = useState("")
   const [debouncedMaxPrice, setDebouncedMaxPrice] = useState("")
-  const [debouncedAmenities, setDebouncedAmenities] = useState("")
+  const [debouncedBedrooms, setDebouncedBedrooms] = useState("")
 
   const navigate = useNavigate()
 
@@ -51,7 +51,9 @@ function Home({ user }) {
   }
 
   function handleSearch() {
-    console.log("Searching:", location, minPrice, maxPrice)
+    setHasMore(true)
+    setOffset(0)
+    fetchHouses(true)
   }
 
   // ---------------- DEBOUNCE ----------------
@@ -60,11 +62,11 @@ function Home({ user }) {
       setDebouncedLocation(locationFilter)
       setDebouncedMinPrice(minPrice)
       setDebouncedMaxPrice(maxPrice)
-      setDebouncedAmenities(amenitiesFilter)
+      setDebouncedBedrooms(bedroomsFilter)
     }, 500)
 
     return () => clearTimeout(timeout)
-  }, [locationFilter, minPrice, maxPrice, amenitiesFilter])
+  }, [locationFilter, minPrice, maxPrice, bedroomsFilter])
 
  useEffect(() => {
     function handleScroll() {
@@ -114,16 +116,9 @@ function Home({ user }) {
     if (debouncedMaxPrice)
       query = query.lte("price", parseInt(debouncedMaxPrice))
 
-    if (debouncedAmenities.trim()) {
-      const amenitiesArr = debouncedAmenities
-        .toLowerCase()
-        .split(",")
-        .map(a => a.trim())
 
-      amenitiesArr.forEach(a => {
-        query = query.ilike("amenities", `%${a}%`)
-      })
-    }
+    if (bedroomsFilter)
+      query = query.eq("bedrooms", parseInt(debouncedBedrooms))
 
     const { data, error } = await query
 
@@ -144,6 +139,7 @@ function Home({ user }) {
   }
 
   useEffect(() => {
+    setHouses([])     // clears results immediately
     setHasMore(true)
     setOffset(0)
     fetchHouses(true)
@@ -151,12 +147,9 @@ function Home({ user }) {
     debouncedLocation,
     debouncedMinPrice,
     debouncedMaxPrice,
-    debouncedAmenities
+    debouncedBedrooms
   ])
 
-  useEffect(() => {
-    fetchHouses(true)
-  }, [])
 
   // ---------------- INFINITE SCROLL ----------------
   useEffect(() => {
@@ -165,7 +158,7 @@ function Home({ user }) {
       const windowHeight = window.innerHeight
       const fullHeight = document.documentElement.scrollHeight
 
-      if (scrollTop + windowHeight >= fullHeight - 500 && !loading && hasMore) {
+      if (scrollTop + windowHeight >= fullHeight - 1200 && !loading && hasMore) {
         fetchHouses()
       }
     }
@@ -174,7 +167,6 @@ function Home({ user }) {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [loading, hasMore])
 
- 
 
   // ---------------- UI ----------------
   return (
@@ -219,7 +211,8 @@ function Home({ user }) {
             fontSize: "52px",
             fontWeight: "600",
             letterSpacing: "1px",
-            marginBottom: "20px"
+            marginBottom: "8px",
+            marginTop: "74px"
           }}
         >
           Refined Homes. Elevated Living.
@@ -284,6 +277,8 @@ function Home({ user }) {
               }}         
             />
 
+            {
+            /*
             <input
               type="text"
               placeholder="Amenities (wifi, parking, gym)"
@@ -291,8 +286,22 @@ function Home({ user }) {
               onChange={(e) => setAmenitiesFilter(e.target.value)}
               style={luxuryInput}
             />
+            */
+            }
+            <select
+              value={bedroomsFilter}
+              onChange={(e) => setBedroomsFilter(e.target.value)}
+              style={luxuryInput}
+            >
+              <option value="">Bedrooms</option>
+              <option value="0">Bedsitter </option>
+              <option value="1">1 Bedroom</option>
+              <option value="2">2 Bedrooms</option>
+              <option value="3">3 Bedrooms</option>
+              <option value="4">4 Bedrooms</option>
+            </select>
 
-            <button
+          <button
             onClick={handleSearch}
             style={{
               padding: "12px 24px",
@@ -303,7 +312,7 @@ function Home({ user }) {
               cursor: "pointer",
               fontWeight: "600"
             }}
-          >
+        >
             Search
           </button>
           </div>
@@ -324,6 +333,31 @@ function Home({ user }) {
      }}>
 
       {/* Listings */}
+      {/* Skeleton loading cards */}
+      {loading && houses.length === 0 && (
+        <div
+          style={{
+            marginTop: "40px",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: "40px"
+          }}
+        >
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              style={{
+                height: "280px",
+                borderRadius: "18px",
+                background: "#eee",
+                animation: "pulse 1.5s infinite"
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Actual houses */}
       <div
         style={{
           marginTop: "40px",
@@ -395,7 +429,7 @@ function Home({ user }) {
     </div>
     </div>
     
-  )
+    )
 }
 
 const luxuryInput = {
@@ -425,7 +459,7 @@ const searchBar = {
   justifyContent: "center",
   alignItems: "center",
   flexWrap: "wrap",
-  marginTop: "30px",
+  marginTop: "20px",
   padding: "18px",
   background: "rgba(255,255,255,0.9)",
   borderRadius: "14px",

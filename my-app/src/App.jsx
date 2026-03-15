@@ -9,8 +9,10 @@ import Signup from "./pages/Signup"
 import HouseDetails from "./pages/HouseDetails"
 import LandlordDashboard from "./pages/LandlordDashboard"
 import Navbar from "./components/Navbar.jsx"
+import Admin from "./pages/admin.jsx"
 
 function App() {
+  const ADMIN_EMAIL = "silymily003@gmail.com"
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
 
@@ -54,16 +56,32 @@ function App() {
       <Routes>
         <Route path="/" element={<Home user={user} />} />
 
-        <Route path="/login" element={<Login user={user} />} />
+        <Route 
+        path="/login" element={<Login user={user} />} />
 
-        <Route path="/signup" element={<Signup user={user} />} />
+        <Route
+         path="/signup" element={<Signup user={user} />} 
+        />
 
-        <Route path="/house/:id" element={<HouseDetails user={user} />} />
+        <Route path="/house/:id" element= {<HouseDetails user=
+          {user} 
+         />}
+        />
 
        <Route
-        path="/dashboard"
-        element={user ? <LandlordDashboard user={user} /> : <Navigate to="/login" />}
+         path="/dashboard"
+         element={user ? <LandlordDashboard  user={user} /> : <Navigate to="/login" 
+         />}
        />
+
+        <Route
+          path="/admin"
+          element={
+            user && user.email === ADMIN_EMAIL
+              ? <Admin user={user} />
+              : <Navigate to="/" />
+          }
+        />
 
       </Routes>
     </>

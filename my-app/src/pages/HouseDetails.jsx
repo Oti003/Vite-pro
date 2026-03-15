@@ -35,6 +35,12 @@ function HouseDetails({user}) {
       .eq("id", id)
       .single()
 
+    await supabase
+    .from("houses")
+    .update({ views: (data.views || 0) + 1 })
+    .eq("id", id)
+    
+
     if (error) {
       console.log(error)
       setLoading(false)

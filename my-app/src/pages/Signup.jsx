@@ -32,6 +32,13 @@ function Signup() {
       }
     ]);
 
+    await supabase.from("profiles").insert([
+    {
+      id: data.user.id,
+      email: email
+    }
+    ])
+
     navigate("/dashboard");
   };
 

@@ -13,6 +13,7 @@ function LandlordDashboard({ user }) {
   const [price, setPrice] = useState("")
   const [phone, setPhone] = useState("")
   const [description, setDescription] = useState("")
+  const [bedrooms, setBedrooms] = useState("")
   const [images, setImages] = useState([])
   const [editingId, setEditingId] = useState(null)
   const [rentalType, setRentalType] = useState("monthly")
@@ -169,22 +170,66 @@ function LandlordDashboard({ user }) {
 
       setEditingId(null)
     } else {
+      // CHECK FOR POSSIBLE DUPLICATES
+      const { data: existing } = await supabase
+        .from("houses")
+        .select("id, price, title, image_urls")
+        .ilike("location", location)
+
+      let duplicateFound = false
+
+      if (existing) {
+        existing.forEach(h => {
+
+          const priceClose = Math.abs(h.price - price) < 2000
+
+          const titleSimilar =
+            h.title?.toLowerCase().includes(title.toLowerCase()) ||
+            title.toLowerCase().includes(h.title?.toLowerCase())
+
+          const sameImage =
+            h.image_urls &&
+            imageUrls &&
+            h.image_urls.some(img => imageUrls.includes(img))
+
+          if (priceClose && titleSimilar) duplicateFound = true
+          if (sameImage) duplicateFound = true
+        })
+      }
+
+      if (duplicateFound) {
+        alert("Possible duplicate listing detected.")
+        return
+      }
+
+      //LISTING QUALITY SCORE (0-100)
+      let score = 0
+
+      if (title?.length > 10) score += 20
+      if (description?.length > 40) score += 20
+      if (imageUrls?.length >= 3) score += 20
+      if (bedrooms) score += 10
+      if (location) score += 10
+      if (price) score += 10
+      if (amenities?.length > 0) score += 10
+
       // CREATE NEW LISTING
       const { error } = await supabase
-        .from("houses")
-        
+        .from("houses")      
           .insert([
           {
           title,
           location,
           price: parseInt(price),
+          bedrooms: parseInt(bedrooms),
           landlord_phone: phone,
           amenities: selectedAmenities,
           description,
           user_id: user.id,
           image_urls: imageUrls,
           rental_type: rentalType,
-          status: "available"
+          status: "pending",
+          quality_score: score
         }
       ])
 
@@ -199,6 +244,7 @@ function LandlordDashboard({ user }) {
     setTitle("")
     setLocation("")
     setPrice("")
+    setBedrooms("")
     setPhone("")
     setSelectedAmenities([])
     setDescription("")
@@ -305,22 +351,40 @@ function LandlordDashboard({ user }) {
         <h3>{editingId ? "Edit Listing" : "Add New Listing"}</h3>
 
         <input placeholder="Title eg; Modern 2BR Apartment in Westlands" value={title}
-          onChange={(e) => setTitle(e.target.value)} style={input} />
+          onChange={(e) => setTitle(e.target.value)} style={input} 
+        />
 
         <input placeholder="Location eg; WESTLANDS, NAIROBI "
           value={location}
-          onChange={(e) => setLocation(e.target.value)} style={input} />
+          onChange={(e) => setLocation(e.target.value)} style={input} 
+        />
 
         <input placeholder="Price"
           value={price}
-          onChange={(e) => setPrice(e.target.value)} style={input} />
+          onChange={(e) => setPrice(e.target.value)} style={input} 
+        />
 
         <input placeholder="Phone"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)} style={input} />
+          onChange={(e) => setPhone(e.target.value)} style={input} 
+        />
+
+        <select
+          value={bedrooms}
+          onChange={(e) => setBedrooms(e.target.value)}
+          style={{ marginTop: "10px", padding: "8px" }}
+        >
+          <option value="">Select Bedrooms</option>
+          <option value="0">Bedsitter</option>
+          <option value="1">1 Bedroom</option>
+          <option value="2">2 Bedrooms</option>
+          <option value="3">3 Bedrooms</option>
+          <option value="4">4 Bedrooms</option>
+        </select>
 
         {amenities.map((amenity) => (
           <label key={amenity} style={checkboxLabel}>
+
             <input
               type="checkbox"
               value={amenity}
