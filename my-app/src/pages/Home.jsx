@@ -1,20 +1,23 @@
 import { useEffect, useState, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import { supabase } from "../supabase"
 import HouseCard from "../components/HouseCard"
 import HeroImage from "../assets/Hero_Image.jpg"
 
-
 function Home({ user }) {
+
   const limit = 16
   const fetchingRef = useRef(false)
 
-  const [scrolled, setScrolled] = useState(false)
   const [houses, setHouses] = useState([])
+  const [featuredHouses, setFeaturedHouses] = useState([])
+  const [savedIds, setSavedIds] = useState([])
+
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [offset, setOffset] = useState(0)
-  const [savedIds, setSavedIds] = useState([])
+
+  const [recentlyViewed,setRecentlyViewed] = useState([])
 
   const [locationFilter, setLocationFilter] = useState("")
   const [minPrice, setMinPrice] = useState("")
@@ -28,18 +31,7 @@ function Home({ user }) {
 
   const navigate = useNavigate()
 
-  const locations = [
-    "All Locations",
-    "Westlands",
-    "Kilimani",
-    "Kileleshwa",
-    "Runda",
-    "Kasarani",
-    "Roysambu",
-    "Ruaka"
-  ]
-
-  // ---------------- THEME (Luxury System) ----------------
+  // ---------------- THEME ----------------
   const theme = {
     background: "#f8f7f5",
     card: "#ffffff",
@@ -68,21 +60,7 @@ function Home({ user }) {
     return () => clearTimeout(timeout)
   }, [locationFilter, minPrice, maxPrice, bedroomsFilter])
 
- useEffect(() => {
-    function handleScroll() {
-      setScrolled(window.scrollY > 80)
-    }
-
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, []) 
-
   // ---------------- LOAD SAVED ----------------
-  useEffect(() => {
-    if (user) loadSavedHouses(user.id)
-    else setSavedIds([])
-  }, [user])
-
   async function loadSavedHouses(userId) {
     const { data } = await supabase
       .from("saved_houses")
@@ -92,8 +70,22 @@ function Home({ user }) {
     setSavedIds(data?.map(item => item.house_id) || [])
   }
 
-  // ---------------- FETCH ----------------
+  // ---------------- FETCH FEATURED ----------------
+  async function fetchFeatured() {
+
+    const { data } = await supabase
+      .from("houses")
+      .select("*")
+      .eq("status","available")
+      .eq("is_featured",true)
+      .limit(6)
+
+    setFeaturedHouses(data || [])
+  }
+
+  // ---------------- FETCH HOUSES ----------------
   async function fetchHouses(reset = false) {
+
     if (!hasMore && !reset) return
     if (fetchingRef.current) return
 
@@ -103,8 +95,8 @@ function Home({ user }) {
     let query = supabase
       .from("houses")
       .select("*")
-      .eq("status", "available")
-      .order("created_at", { ascending: false })
+      .eq("status","available")
+      .order("created_at",{ ascending:false })
       .range(reset ? 0 : offset, (reset ? 0 : offset) + limit - 1)
 
     if (debouncedLocation.trim())
@@ -115,7 +107,6 @@ function Home({ user }) {
 
     if (debouncedMaxPrice)
       query = query.lte("price", parseInt(debouncedMaxPrice))
-
 
     if (bedroomsFilter)
       query = query.eq("bedrooms", parseInt(debouncedBedrooms))
@@ -138,17 +129,27 @@ function Home({ user }) {
     fetchingRef.current = false
   }
 
-  useEffect(() => {
-    setHouses([])     // clears results immediately
+  // ---------------- INITIAL LOAD ----------------
+  useEffect(()=>{
+    fetchFeatured()
+  },[])
+
+  useEffect(()=>{
+    setHouses([])
     setHasMore(true)
     setOffset(0)
     fetchHouses(true)
-  }, [
+  },[
     debouncedLocation,
     debouncedMinPrice,
     debouncedMaxPrice,
     debouncedBedrooms
   ])
+
+  useEffect(()=>{
+    if(user) loadSavedHouses(user.id)
+    else setSavedIds([])
+  },[user])
 
 
   // ---------------- INFINITE SCROLL ----------------
@@ -166,6 +167,14 @@ function Home({ user }) {
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [loading, hasMore])
+  
+    useEffect(()=>{
+
+    const viewed = JSON.parse(localStorage.getItem("recentlyViewed")) || []
+
+    setRecentlyViewed(viewed)
+
+  },[])
 
 
   // ---------------- UI ----------------
@@ -328,9 +337,9 @@ function Home({ user }) {
     {/* MAIN CONTENT BELOW HERO */}
     <div 
     style={{
-     padding: "60px 80px",
-     
-     }}>
+     padding: "60px 80px"    
+     }}
+    >
 
       {/* Listings */}
       {/* Skeleton loading cards */}
@@ -377,7 +386,59 @@ function Home({ user }) {
           />
         ))}
       </div>
+      
 
+      {/* RECENTLY VIEWED SECTION */}
+    <h2 style={{marginTop:"50px"}}>Recently Viewed</h2>
+
+      <div
+      style={{
+      display:"grid",
+      gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",
+      gap:"20px"
+      }}
+      >
+
+      {recentlyViewed.map(house => (
+
+        <Link
+          key={house.id}
+          to={`/house/${house.id}`}
+          style={{ textDecoration:"none", color:"inherit" }}
+        >
+
+          <div
+            style={{
+              border:"1px solid #eee",
+              borderRadius:"10px",
+              padding:"10px"
+            }}
+          >
+
+            <img
+              src={house.image}
+              alt="house"
+              style={{
+                width:"100%",
+                height:"160px",
+                objectFit:"cover",
+                borderRadius:"8px"
+              }}
+            />
+
+            <h4>{house.title}</h4>
+
+            <p>{house.location}</p>
+
+            <p>KES {house.price}</p>
+
+          </div>
+
+        </Link>
+
+      ))}
+
+      </div>
     </div>
 
     {/* BOTTOM ACTION BAR */}

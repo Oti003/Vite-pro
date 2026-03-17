@@ -10,15 +10,39 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const {data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+
+    if (data?.user) {
+
+      await supabase
+        .from("login_events")
+        .insert({
+          user_id: data.user.id,
+          email: data.user.email
+        })
+
+    }
+    navigate("/")
 
     if (error) {
       alert(error.message);
     } else {
       navigate("/");
+    }
+
+    if (!error && data?.user) {
+
+      await supabase
+        .from("login_events")
+        .insert({
+          user_id: data.user.id,
+          email: data.user.email
+        })
+
+      navigate("/")
     }
   };
 

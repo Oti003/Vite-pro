@@ -110,6 +110,10 @@ function LandlordDashboard({ user }) {
     return uploadedUrls
   }
 
+  function sanitize(text){
+      return text.replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    }
+
   // Create or Update Listing
   async function handleSubmit(e) {
     e.preventDefault()
@@ -213,31 +217,47 @@ function LandlordDashboard({ user }) {
       if (price) score += 10
       if (amenities?.length > 0) score += 10
 
+      //SPAMMING PREVENTION - MAX 30 LISTINGS PER USER
+      const { count } = await supabase
+        .from("houses")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+
+      if (count >= 30) {
+        alert("Listing limit reached. Contact admin.")
+        return
+      }
+
       // CREATE NEW LISTING
       const { error } = await supabase
         .from("houses")      
-          .insert([
+        .insert([
           {
-          title,
-          location,
+          title: sanitize(title),
+          location: sanitize(location),
           price: parseInt(price),
           bedrooms: parseInt(bedrooms),
           landlord_phone: phone,
           amenities: selectedAmenities,
-          description,
+          description: sanitize(description),
           user_id: user.id,
           image_urls: imageUrls,
           rental_type: rentalType,
           status: "pending",
           quality_score: score
-        }
-      ])
+          }
+
+        ])
+
+      
 
       if (error) {
         console.log("INSERT ERROR:", error)
         alert("Error creating listing")
         return
       }
+      
+
     }
 
     // Reset form
@@ -252,6 +272,8 @@ function LandlordDashboard({ user }) {
     setRentalType("monthly")
 
     fetchMyHouses()
+
+    
   }
 
   // Delete listing
@@ -341,6 +363,7 @@ function LandlordDashboard({ user }) {
 
       <form
         onSubmit={handleSubmit}
+
         style={{
           marginTop: "30px",
           padding: "20px",

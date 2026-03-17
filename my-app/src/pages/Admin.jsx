@@ -4,6 +4,7 @@ import { supabase } from "../supabase"
 function Admin() {
   const [viewerImages,setViewerImages] = useState([])
   const [viewerIndex,setViewerIndex] = useState(0)
+  const [view,setView] = useState("pending")
   const [houses, setHouses] = useState([])
   const [stats, setStats] = useState({
     total:0,
@@ -12,39 +13,52 @@ function Admin() {
     landlords:0
   })
 
-  const [view,setView] = useState("pending")
-
 
   // LOAD STATS
-  async function loadStats(){
+  async function loadStats() {
 
-    const { count:total } = await supabase
+    // TOTAL LISTINGS
+    const { count: totalListings } = await supabase
       .from("houses")
-      .select("*",{count:"exact",head:true})
+      .select("*", { count: "exact", head: true })
 
-    const { count:pending } = await supabase
+    // PENDING
+    const { count: pendingListings } = await supabase
       .from("houses")
-      .select("*",{count:"exact",head:true})
-      .eq("status","pending")
+      .select("*", { count: "exact", head: true })
+      .eq("approved", "pending")
 
-    const { count:approved } = await supabase
+    // APPROVED
+    const { count: approvedListings } = await supabase
       .from("houses")
-      .select("*",{count:"exact",head:true})
-      .eq("status","available")
+      .select("*", { count: "exact", head: true })
+      .eq("approved", "approved")
 
-    const { data } = await supabase
+    // UNIQUE LANDLORDS
+    const { data: landlordsData } = await supabase
       .from("houses")
       .select("user_id")
 
-    const uniqueLandlords = new Set(data.map(h => h.user_id))
+    const landlordCount = new Set(
+      (landlordsData || []).map(l => l.user_id)
+    ).size
+
+    // UNIQUE USERS (LOGIN EVENTS)
+    const { data: loginData } = await supabase
+      .from("login_events")
+      .select("user_id")
+
+    const uniqueUsers = new Set(
+      (loginData || []).map(u => u.user_id)
+    ).size
 
     setStats({
-      total,
-      pending,
-      approved,
-      landlords:uniqueLandlords.size
+      total: totalListings || 0,
+      pending: pendingListings || 0,
+      approved: approvedListings || 0,
+      landlords: landlordCount,
+      signins: uniqueUsers
     })
-
   }
 
   function calculateScore(house){
@@ -124,7 +138,6 @@ function Admin() {
       .order("views",{ascending:false})
       .limit(5)
 
-    console.log("Top listings",data)
 
   }
 
@@ -141,6 +154,7 @@ function Admin() {
     loadListings()
   },[view])
 
+  // DUPLICATE DETECTION- incomplete
   function detectDuplicate(currentHouse, allHouses) {
 
     const duplicates = allHouses.filter(h => {
@@ -175,7 +189,8 @@ function Admin() {
     <div
       style={{
         padding:"40px",
-        marginTop:"80px"
+        marginTop:"120px",
+        backgroundColor: "#c5c7c8",
       }}
     >
 
@@ -210,6 +225,11 @@ function Admin() {
       <div style={statCard}>
         Active Landlords
         <h2>{stats.landlords}</h2>
+      </div>
+
+      <div style={statCard}>
+        Platform Sign-ins
+        <h2>{stats.signins}</h2>
       </div>
 
     </div>
@@ -296,7 +316,24 @@ function Admin() {
     </div>
 
 
-    <h3>{house.title}</h3>
+    <h3 style={{display:"flex",alignItems:"center",gap:"10px"}}>
+    {house.title}
+
+      <span
+        style={{
+          background:
+            house.status === "pending" ? "#facc15" : "#16a34a",
+          color:"#fff",
+          padding:"4px 8px",
+          borderRadius:"6px",
+          fontSize:"12px",
+          textTransform:"capitalize"
+        }}
+      >
+        {house.status}
+      </span>
+
+  </h3>
 
     <p>{house.location}</p>
 
@@ -317,7 +354,7 @@ function Admin() {
           : "#dc2626"
     }}
     >
-    Listing Score: {calculateScore(house)}/100
+     Listing Score: {calculateScore(house)}/100
     </p>
 
 
@@ -357,7 +394,7 @@ function Admin() {
 
     </div>
 
-    ))}
+  ))}
 
     </div>
 

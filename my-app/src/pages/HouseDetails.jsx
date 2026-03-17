@@ -3,53 +3,76 @@ import { useParams } from "react-router-dom"
 import { supabase } from "../supabase"
 
 function HouseDetails({user}) {
-  const theme = {
-  background: "#f8f7f5",
-  card: "#ffffff",
-  textPrimary: "#111111",
-  textSecondary: "#666666",
-  accent: "#1c1c1c",
-  borderRadius: "18px",
-  shadowSoft: "0 20px 60px rgba(0,0,0,0.06)"
-}
 
   const { id } = useParams()
+  console.log("House ID:", id)
   const isLoggedIn = !!user
+
   const [house, setHouse] = useState(null)
   const [loading, setLoading] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(null)
   const [showContact, setShowContact] = useState(false)
 
-  const images = Array.isArray(house?.image_urls)
-    ? house.image_urls
-    : []
 
-  useEffect(() => {
-    fetchHouse()
-  }, [])
+  //SAVE RECENTLY VIEWED IN LOCAL STORAGE
+  const saveRecentlyViewed = (house) => {
 
+    if(!house) return
+
+    let viewed = JSON.parse(localStorage.getItem("recentlyViewed")) || []
+
+    viewed = viewed.filter(h => h.id !== house.id)
+
+    viewed.unshift({
+      id: house.id,
+      title: house.title,
+      price: house.price,
+      location: house.location,
+      image: house.image_urls?.[0]
+    })
+
+    viewed = viewed.slice(0,6)
+
+    localStorage.setItem("recentlyViewed", JSON.stringify(viewed))
+  }
+  
+
+  //FETCH HOUSES
   async function fetchHouse() {
+
+    console.log("Fetching house with ID:", id)
+
     const { data, error } = await supabase
       .from("houses")
       .select("*")
       .eq("id", id)
       .single()
 
-    await supabase
-    .from("houses")
-    .update({ views: (data.views || 0) + 1 })
-    .eq("id", id)
-    
+    console.log("Supabase result:", data, error)
 
     if (error) {
-      console.log(error)
+      console.log("ERROR:", error)
       setLoading(false)
       return
     }
 
     setHouse(data)
+
+    saveRecentlyViewed(data)
+
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (!id) return
+    fetchHouse()
+  }, [id])
+
+
+
+  const images = Array.isArray(house?.image_urls)
+    ? house.image_urls
+    : []
 
   function nextImage() {
     if (!images.length) return
@@ -77,8 +100,76 @@ function HouseDetails({user}) {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [selectedIndex, images])
 
-  if (loading) return <p style={{ padding: "20px" }}>Loading...</p>
-  if (!house) return <p style={{ padding: "20px" }}>House not found</p>
+   if (loading){ 
+    return <p style={{
+      padding: "40px",
+      marginTop:"60px"
+     }}>Loading house...</p>
+  }
+  if (!house){
+  return <p style={{ padding: "40px" }}>House not found</p>
+  }
+
+  const shareListing = () => {
+
+    const url = window.location.href
+
+    const text = `🏡 Amazing house I found on TwoFiveHomes!
+
+    Location: ${house.location}
+    Price: KES ${house.price}
+
+    See it here:
+    ${url}`
+
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`
+
+    window.open(whatsappUrl, "_blank")
+
+  }
+
+  const copyLink = () => {
+
+    const url = window.location.href
+
+    navigator.clipboard.writeText(url)
+
+    alert("Link copied! You can now share it anywhere.")
+
+  }
+  
+  const toggleFavorite = () => {
+
+  if(!house) return
+
+  let favorites = JSON.parse(localStorage.getItem("favorites")) || []
+
+  const exists = favorites.find(h => h.id === house.id)
+
+  if(exists){
+
+    favorites = favorites.filter(h => h.id !== house.id)
+
+  }else{
+
+    favorites.push({
+      id: house.id,
+      title: house.title,
+      price: house.price,
+      location: house.location,
+      image: house.image_urls?.[0]
+    })
+
+  }
+
+  localStorage.setItem("favorites", JSON.stringify(favorites))
+
+  alert(exists ? "Removed from favorites" : "Added to favorites")
+
+  }
+
+
+  
 
   return (
     <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto", marginTop: "110px" }}>
@@ -164,6 +255,56 @@ function HouseDetails({user}) {
             >
               {house.description || "No additionaldescription provided."}
             </p>
+
+            <div
+              style={{
+                display:"flex",
+                gap:"10px",
+                marginTop:"10px"
+              }}
+            >
+
+            <button
+              onClick={toggleFavorite}
+              style={{
+                padding:"6px 12px",
+                borderRadius:"20px",
+                border:"1px solid #ddd",
+                background:"#fff",
+                cursor:"pointer"
+              }}
+            >
+            ❤️ Favorite
+            </button>
+
+            <button
+              onClick={shareListing}
+              style={{
+                padding:"6px 12px",
+                borderRadius:"20px",
+                border:"1px solid #ddd",
+                background:"#fff",
+                cursor:"pointer"
+              }}
+            >
+            🔗 Share
+            </button>
+
+            <button
+              onClick={copyLink}
+              style={{
+                padding:"6px 12px",
+                borderRadius:"20px",
+                border:"1px solid #ddd",
+                background:"#fff",
+                cursor:"pointer"
+              }}
+            >
+            📋 Copy Link
+            </button>
+
+            </div>
+
           </div>
           <hr />
         </div>

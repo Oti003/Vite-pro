@@ -63,9 +63,7 @@ function App() {
          path="/signup" element={<Signup user={user} />} 
         />
 
-        <Route path="/house/:id" element= {<HouseDetails user=
-          {user} 
-         />}
+        <Route path="/house/:id" element= {<HouseDetails user={user} />}
         />
 
        <Route
