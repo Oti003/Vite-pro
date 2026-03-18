@@ -73,12 +73,32 @@ function LandlordDashboard({ user }) {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
 
-    if (!error) setHouses(data || [])
-
+    if (!error) 
     setLoading(false)
+
+    .order("is_featured", { ascending: false })
+    .order("created_at", { ascending: false })
   }
 
+  async function loadListings() {
+    const { data, error } = await supabase
+      .from("houses")
+      .select("*")
+      .eq("user_id", user.id) // important: only landlord's houses
+      .order("created_at", { ascending: false })
 
+    if (error) {
+      console.log(error)
+      return
+    }
+
+    setHouses(data || [])
+  }
+
+  useEffect(() => {
+    loadListings()
+  }, [])
+  
   // Upload images
   async function uploadImages() {
     let uploadedUrls = []
@@ -243,7 +263,8 @@ function LandlordDashboard({ user }) {
           user_id: user.id,
           image_urls: imageUrls,
           rental_type: rentalType,
-          status: "pending",
+          status:"available",
+          approval_status: "pending",
           quality_score: score
           }
 
@@ -291,18 +312,21 @@ function LandlordDashboard({ user }) {
 
   // Toggle status
   async function toggleStatus(id, currentStatus) {
-    const newStatus =
-      currentStatus?.toLowerCase().trim() === "available"
-        ? "rented"
-        : "available"
+  const newStatus =
+    currentStatus === "available" ? "rented" : "available"
 
-    const { error } = await supabase
-      .from("houses")
-      .update({ status: newStatus })
-      .eq("id", id)
-      .eq("user_id", user.id)
+  const { error } = await supabase
+    .from("houses")
+    .update({ status: newStatus })
+    .eq("id", id)
 
-    if (!error) fetchMyHouses()
+  if (error) {
+    console.log(error)
+    return
+  }
+
+  // refresh UI
+  loadListings() // or loadListings depending on your file
   }
 
   // Edit listing
@@ -315,6 +339,30 @@ function LandlordDashboard({ user }) {
     setSelectedAmenities(house.amenities || "")
     setDescription(house.description || [])
     setRentalType(house.rental_type || "monthly")
+  }
+
+  async function handleFeature(houseId) {
+    // TEMP: simulate payment success
+    const paymentSuccessful = true
+
+    if (!paymentSuccessful) return
+
+    const days = 7 // feature for 7 days
+
+    const { error } = await supabase
+      .from("houses")
+      .update({
+        is_featured: true,
+        featured_until: new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+      })
+      .eq("id", houseId)
+
+    if (error) {
+      console.log(error)
+      return
+    }
+
+    alert("Listing featured successfully 🚀")
   }
 
   return (
@@ -548,6 +596,23 @@ function LandlordDashboard({ user }) {
                     : ""}
                 </p>
 
+                {house.approval_status !== "approved" && (
+                  <p
+                    style={{
+                      background: "#facc15",
+                      color: "#000",
+                      padding: "4px 8px",
+                      borderRadius: "6px",
+                      display: "inline-block",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      marginBottom: "8px"
+                    }}
+                  >
+                    Pending Approval
+                  </p>
+                )}
+
                 <p
                   style={{
                     color:
@@ -563,24 +628,62 @@ function LandlordDashboard({ user }) {
                 </p>
 
                 <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  <button onClick={() => handleEdit(house)}>Edit</button>
+                  <button onClick={() => handleEdit(house)}
+                  style={{ 
+                    background: "gray",    color: "white",
+                    marginTop: "15px",
+                    padding: "6px",
+                    borderRadius: "2px",
+                    border: "none",
+                    cursor: "pointer"
+                    }} 
+                  >
+                    Edit
+                  </button>
 
                   <button
                     onClick={() => handleDelete(house.id)}
-                    style={{ background: "red", color: "white" }}
+                    style={{ background: "red", color: "white",
+                    marginTop: "15px",
+                    padding: "6px",
+                    borderRadius: "2px",
+                    border: "none",
+                    cursor: "pointer"
+                    }}
                   >
                     Delete
                   </button>
 
-                  <button
-                    onClick={() =>
-                      toggleStatus(house.id, house.status)
-                    }
-                  >
-                    {house.status === "available"
-                      ? "Mark as Rented"
-                      : "Mark as Available"}
-                  </button>
+                 {house.approval_status === "approved" && (
+                <button
+                  onClick={() =>
+                    toggleStatus(house.id, house.status)
+                  }
+                  disabled={house.approval_status !== "approved"}
+                  style={{
+                    color: "white",
+                    marginTop: "15px",
+                    padding: "6px",
+                    borderRadius: "2px",
+                    border: "none",
+                    cursor: "pointer",
+                    background:
+                      house.approval_status !== "approved"
+                        ? "#ccc"
+                        : "#2563eb",
+                    cursor:
+                      house.approval_status !== "approved"
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity:
+                      house.approval_status !== "approved" ? 0.7 : 1
+                  }}
+                >
+                  {house.status === "available"
+                    ? "Mark as Rented"
+                    : "Mark as Available"}
+                </button>
+                )}
                 </div>
               </div>
             </div>
@@ -594,6 +697,13 @@ function LandlordDashboard({ user }) {
           You have no listings yet.
         </p>
       )}
+
+      <button
+        onClick={() => handleFeature(house.id)}
+        style={{ background: "gold", color: "black" }}
+      >
+       <h3> Featured Listing ⭐</h3>
+      </button>
     </div>
   )
 }

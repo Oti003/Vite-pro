@@ -5,7 +5,6 @@ import { supabase } from "../supabase"
 function HouseDetails({user}) {
 
   const { id } = useParams()
-  console.log("House ID:", id)
   const isLoggedIn = !!user
 
   const [house, setHouse] = useState(null)
@@ -40,26 +39,41 @@ function HouseDetails({user}) {
   //FETCH HOUSES
   async function fetchHouse() {
 
-    console.log("Fetching house with ID:", id)
-
     const { data, error } = await supabase
       .from("houses")
       .select("*")
       .eq("id", id)
       .single()
 
-    console.log("Supabase result:", data, error)
+      if (data.approval_status !== "approved" || data.status !== "available") {
+        navigate("/") // or show "Not available"
+        return
+      }
 
-    if (error) {
-      console.log("ERROR:", error)
-      setLoading(false)
-      return
-    }
+      if (data) {
+        // increment views
+        await supabase
+          .from("houses")
+          .update({ views: (data.views || 0) + 1 })
+          .eq("id", data.id)
+      }
+
+      if (error) {
+        console.log("ERROR:", error)
+        setLoading(false)
+        return
+      }
 
     setHouse(data)
 
     saveRecentlyViewed(data)
-
+      if (data) {
+        await supabase
+          .from("houses")
+          .update({ views: (data.views || 0) + 1 })
+          .eq("id", data.id)
+      }
+      
     setLoading(false)
   }
 

@@ -10,7 +10,6 @@ function Home({ user }) {
   const fetchingRef = useRef(false)
 
   const [houses, setHouses] = useState([])
-  const [featuredHouses, setFeaturedHouses] = useState([])
   const [savedIds, setSavedIds] = useState([])
 
   const [loading, setLoading] = useState(true)
@@ -30,6 +29,25 @@ function Home({ user }) {
   const [debouncedBedrooms, setDebouncedBedrooms] = useState("")
 
   const navigate = useNavigate()
+  const [trendingHouses, setTrendingHouses] = useState([])
+  const loaderRef = useRef(null)
+
+  const featuredHouses = houses.filter(
+    h =>
+      h.is_featured &&
+      h.featured_until &&
+      new Date(h.featured_until) > new Date() &&
+      h.status === "available" &&
+      h.approval_status === "approved"
+  )
+
+  const normalHouses = houses.filter(
+    h =>
+      !h.is_featured ||
+      !h.featured_until ||
+      new Date(h.featured_until) < new Date()
+  )
+ 
 
   // ---------------- THEME ----------------
   const theme = {
@@ -46,6 +64,18 @@ function Home({ user }) {
     setHasMore(true)
     setOffset(0)
     fetchHouses(true)
+  }
+
+  function clearFilters() {
+    setLocationFilter("")
+    setMinPrice("")
+    setMaxPrice("")
+    setBedroomsFilter("")
+    
+    setOffset(0)
+    setHasMore(true)
+
+    fetchHouses(true) // 🔥 reload fresh data
   }
 
   // ---------------- DEBOUNCE ----------------
@@ -76,11 +106,12 @@ function Home({ user }) {
     const { data } = await supabase
       .from("houses")
       .select("*")
-      .eq("status","available")
+      .eq("approval_status", "approved")
+      .eq("status", "available")
       .eq("is_featured",true)
       .limit(6)
 
-    setFeaturedHouses(data || [])
+
   }
 
   // ---------------- FETCH HOUSES ----------------
@@ -95,26 +126,33 @@ function Home({ user }) {
     let query = supabase
       .from("houses")
       .select("*")
-      .eq("status","available")
+      .eq("approval_status", "approved")
+      .eq("status", "available")
       .order("created_at",{ ascending:false })
       .range(reset ? 0 : offset, (reset ? 0 : offset) + limit - 1)
 
     if (debouncedLocation.trim())
       query = query.ilike("location", `%${debouncedLocation}%`)
 
-    if (debouncedMinPrice)
+    if (debouncedMinPrice && !isNaN(debouncedMinPrice))
       query = query.gte("price", parseInt(debouncedMinPrice))
 
-    if (debouncedMaxPrice)
+    if (debouncedMaxPrice && !isNaN(debouncedMaxPrice))
       query = query.lte("price", parseInt(debouncedMaxPrice))
 
-    if (bedroomsFilter)
+    if (debouncedBedrooms)
       query = query.eq("bedrooms", parseInt(debouncedBedrooms))
 
-    const { data, error } = await query
 
+    const { data, error } = await query
     if (error) {
       console.log(error)
+      setLoading(false)
+      fetchingRef.current = false
+      return
+    }
+
+    if (!data){
       setLoading(false)
       fetchingRef.current = false
       return
@@ -127,6 +165,23 @@ function Home({ user }) {
 
     setLoading(false)
     fetchingRef.current = false
+  }
+
+  async function loadTrending() {
+    const { data, error } = await supabase
+      .from("houses")
+      .select("*")
+      .eq("approval_status", "approved")
+      .eq("status", "available")
+      .order("views", { ascending: false })
+      .limit(3)
+
+    if (error) {
+      console.log(error)
+      return
+    }
+
+    setTrendingHouses(data || [])
   }
 
   // ---------------- INITIAL LOAD ----------------
@@ -151,220 +206,398 @@ function Home({ user }) {
     else setSavedIds([])
   },[user])
 
-
-  // ---------------- INFINITE SCROLL ----------------
   useEffect(() => {
-    function handleScroll() {
-      const scrollTop = window.scrollY
-      const windowHeight = window.innerHeight
-      const fullHeight = document.documentElement.scrollHeight
+    fetchHouses()
+    loadTrending()
+  }, [])
 
-      if (scrollTop + windowHeight >= fullHeight - 1200 && !loading && hasMore) {
-        fetchHouses()
+
+  // ---------------- INFINITE SCROLL ---------------- 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+
+        if (
+          entry.isIntersecting &&
+          hasMore &&
+          !fetchingRef.current
+        ) {
+          fetchHouses()
+        }
+      },
+      {
+        root: null,
+        rootMargin: "200px", // 🔥 preload before reaching bottom
+        threshold: 0
       }
+    )
+
+    const currentRef = loaderRef.current
+
+    if (currentRef) {
+      observer.observe(currentRef)
     }
 
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [loading, hasMore])
+    return () => {
+      if (currentRef) observer.unobserve(currentRef)
+    }
+  }, [hasMore])
   
-    useEffect(()=>{
+  
+  useEffect(() => {
+    async function loadRecentlyViewed() {
+      const viewed = JSON.parse(localStorage.getItem("recentlyViewed")) || []
 
-    const viewed = JSON.parse(localStorage.getItem("recentlyViewed")) || []
+      if (viewed.length === 0) {
+        setRecentlyViewed([])
+        return
+      }
 
-    setRecentlyViewed(viewed)
+      // extract ids
+      const ids = viewed.map(h => h.id)
 
-  },[])
+      const { data, error } = await supabase
+        .from("houses")
+        .select("*")
+        .in("id", ids)
+        .eq("status", "available")
+        .eq("approval_status", "approved")
+         
 
+      if (error) {
+        console.log(error)
+        return
+      }
 
+      setRecentlyViewed(data || [])
+    }
+
+    loadRecentlyViewed()
+    
+  }, [])
+
+  
   // ---------------- UI ----------------
   return (
-  <div style={{ background: theme.background, minHeight: "100vh" }}>
-    
-    {/* HERO SECTION */}
-    <div
-      style={{
-        position: "relative",
-        height: "75vh",
-        width: "100%",
-        backgroundImage: `url(${HeroImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center"
-      }}
-    >
-     
-      {/* Dark overlay */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundColor: "rgba(0,0,0,0.45)"
-        }}
-      />
-
-      {/* Hero Content */}
+    <div style={{ background: theme.background, minHeight: "100vh" }}>
+      
+      {/* HERO SECTION */}
       <div
         style={{
           position: "relative",
-          textAlign: "center",
-          color: "#fff",
-          padding: "0 20px"
+          height: "75vh",
+          width: "100%",
+          backgroundImage: `url(${HeroImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
         }}
       >
-        
-        <h1
-          style={{
-            fontSize: "52px",
-            fontWeight: "600",
-            letterSpacing: "1px",
-            marginBottom: "8px",
-            marginTop: "74px"
-          }}
-        >
-          Refined Homes. Elevated Living.
-        </h1>
-
-        <p
-          style={{
-            fontSize: "18px",
-            opacity: 0.9,
-            letterSpacing: "0.5px"
-          }}
-        >
-          Discover premium residences curated for modern professionals.
-        </p>
-
+      
+        {/* Dark overlay */}
         <div
           style={{
-            display: "flex",
-            gap: "12px",
-            padding: "16px",
-            borderRadius: "16px",
-            backdropFilter: "blur(12px)",
-            background: "rgba(255,255,255,0.25)",
-            border: "1px solid rgba(255,255,255,0.3)",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.15)"
+            position: "absolute",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.45)"
+          }}
+        />
+
+        {/* Hero Content */}
+        <div
+          style={{
+            position: "relative",
+            textAlign: "center",
+            color: "#fff",
+            padding: "0 20px"
           }}
         >
           
-          <div style={searchBar}>
-            <input
-              type="text"
-              placeholder="Location"
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              style={luxuryInput}
-            />
-
-            <input
-              type="number"
-              placeholder="Min Price"
-              value={minPrice}
-              onChange={(e) => setMinPrice(e.target.value)}
-              style={{
-                padding: "12px",
-                borderRadius: "10px",
-                border: "none",
-                width: "140px"
-              }}         
-            
-            />
-
-            <input
-              type="number"
-              placeholder="Max Price"
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(e.target.value)}
-              style={{
-                padding: "12px",
-                borderRadius: "10px",
-                border: "none",
-                width: "140px"
-              }}         
-            />
-
-            {
-            /*
-            <input
-              type="text"
-              placeholder="Amenities (wifi, parking, gym)"
-              value={amenitiesFilter}
-              onChange={(e) => setAmenitiesFilter(e.target.value)}
-              style={luxuryInput}
-            />
-            */
-            }
-            <select
-              value={bedroomsFilter}
-              onChange={(e) => setBedroomsFilter(e.target.value)}
-              style={luxuryInput}
-            >
-              <option value="">Bedrooms</option>
-              <option value="0">Bedsitter </option>
-              <option value="1">1 Bedroom</option>
-              <option value="2">2 Bedrooms</option>
-              <option value="3">3 Bedrooms</option>
-              <option value="4">4 Bedrooms</option>
-            </select>
-
-          <button
-            onClick={handleSearch}
+          <h1
             style={{
-              padding: "12px 24px",
-              borderRadius: "10px",
-              border: "none",
-              background: "#111",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: "600"
+              fontSize: "52px",
+              fontWeight: "600",
+              letterSpacing: "1px",
+              marginBottom: "8px",
+              marginTop: "74px"
             }}
-        >
-            Search
-          </button>
+          >
+            Refined Homes. Elevated Living.
+          </h1>
+
+          <p
+            style={{
+              fontSize: "18px",
+              opacity: 0.9,
+              letterSpacing: "0.5px"
+            }}
+          >
+            Discover premium residences curated for modern professionals.
+          </p>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              padding: "16px",
+              borderRadius: "16px",
+              backdropFilter: "blur(12px)",
+              background: "rgba(255,255,255,0.25)",
+              border: "1px solid rgba(255,255,255,0.3)",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.15)"
+            }}
+          >
+            
+            <div style={searchBar}>
+              <input
+                type="text"
+                placeholder="Location"
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                style={luxuryInput}
+              />
+
+              <input
+                type="number"
+                placeholder="Min Price"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                style={{
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  width: "140px"
+                }}         
+              
+              />
+
+              <input
+                type="number"
+                placeholder="Max Price"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                style={{
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  width: "140px"
+                }}         
+              />
+
+      
+              <select
+                value={bedroomsFilter}
+                onChange={(e) => setBedroomsFilter(e.target.value)}
+                style={luxuryInput}
+              >
+                <option value="">Bedrooms</option>
+                <option value="0">Bedsitter </option>
+                <option value="1">1 Bedroom</option>
+                <option value="2">2 Bedrooms</option>
+                <option value="3">3 Bedrooms</option>
+                <option value="4">4 Bedrooms</option>
+              </select>
+
+            <button
+              onClick={handleSearch}
+              style={{
+                padding: "12px 24px",
+                borderRadius: "10px",
+                border: "none",
+                background: "#111",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: "600"
+              }}
+          >
+              Search
+            </button>
+            </div>
+
           </div>
 
         </div>
 
+        
       </div>
 
-      
-    </div>
+      {/* SEARCH NOT FOUND */}
+      {!loading && houses.length === 0 && (
+        <div style={{ textAlign: "center", marginTop: "50px" }}>
+          
+          <h2>No houses found</h2>
+          <p 
+          style={{ color: "#666",
+            marginTop: "10px",
+            mar
+           }}>
+            Try adjusting your filters or explore other locations
+          </p>
 
-
-    {/* MAIN CONTENT BELOW HERO */}
-    <div 
-    style={{
-     padding: "60px 80px"    
-     }}
-    >
-
-      {/* Listings */}
-      {/* Skeleton loading cards */}
-      {loading && houses.length === 0 && (
-        <div
-          style={{
-            marginTop: "40px",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            gap: "40px"
-          }}
-        >
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
+          <div style={{ marginTop: "20px" }}>
+            
+            <button
+              onClick={clearFilters}
               style={{
-                height: "280px",
-                borderRadius: "18px",
-                background: "#eee",
-                animation: "pulse 1.5s infinite"
+                padding: "10px 20px",
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer"
               }}
-            />
-          ))}
+            >
+              Clear Filters
+            </button>
+
+          </div>
+
+          <div style={{ marginTop: "30px" }}>
+            <p>Popular searches:</p>
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+              
+              {/*FILTERS*/}
+              {!loading && houses.length === 0 && (
+                <div>
+
+                  {/* Suggestions */}
+                  <button
+                    onClick={() => {
+                      setLocationFilter("Nairobi")
+                      fetchHouses(true)
+                    }}
+                  >
+                    Nairobi
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setLocationFilter("Westlands")
+                      fetchHouses(true)
+                    }}
+                  >
+                    Westlands
+                  </button>
+
+                </div>
+              )}
+
+              <button onClick={() => setBedroomsFilter("1")}>1 Bedroom</button>
+              <button onClick={() => setBedroomsFilter("2")}>2 Bedroom</button>
+
+            </div>
+          </div>
         </div>
       )}
+
+      {/*FEATURED HOUSES */}
+      {featuredHouses.length > 0 && (
+        <>
+          <h3 style={{ marginTop: "30px" }}>Featured Listings ⭐</h3>
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: "20px"
+          }}>
+            {featuredHouses.map((house) => (
+              <div key={house.id}>
+                <img src={house.image_urls?.[0]} />
+                <h4>{house.title}</h4>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+
+      {/* TRENDING HOMES */}
+      <h2 style={{ marginTop: "30px" }}>🔥 Trending Homes</h2>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
+          gap: "20px",
+          marginBottom: "40px"
+        }}
+      >
+
+        {trendingHouses.map((house) => (
+
+          <div
+            key={house.id}
+            onClick={() => navigate(`/house/${house.id}`)}
+            style={{
+              cursor: "pointer",
+              borderRadius: "12px",
+              overflow: "hidden",
+              boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+              background: "#fff"
+            }}
+          >
+
+            <img
+              src={house.image_urls?.[0]}
+              alt="house"
+              style={{
+                width: "100%",
+                height: "200px",
+                objectFit: "cover"
+              }}
+            />
+
+            <div style={{ padding: "15px" }}>
+              <h3>{house.title}</h3>
+              <p>{house.location}</p>
+              <p style={{ fontWeight: "bold" }}>KES {house.price}</p>
+
+              <p style={{ color: "#2563eb", fontWeight: "600" }}>
+                👁 {house.views || 0} views
+              </p>
+            </div>
+
+          </div>
+
+        ))}
+
+      </div>
+
+      {/* MAIN CONTENT BELOW HERO */}
+      <div 
+      style={{
+      padding: "60px 80px"    
+      }}
+      >
+
+        {/* Listings */}
+        {/* Skeleton loading cards */}
+        {loading && houses.length === 0 && (
+          <div
+            style={{
+              marginTop: "40px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: "40px"
+            }}
+          >
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  height: "280px",
+                  borderRadius: "18px",
+                  background: "#eee",
+                  animation: "pulse 1.5s infinite"
+                }}
+              />
+            ))}
+          </div>
+        )}
 
       {/* Actual houses */}
       <div
@@ -375,122 +608,85 @@ function Home({ user }) {
           gap: "40px"
         }}
       >
-        {houses.map(house => (
-          <HouseCard
-            key={house.id}
-            house={house}
-            user={user}
-            savedIds={savedIds}
-            setSavedIds={setSavedIds}
-            theme={theme}
-          />
-        ))}
       </div>
       
 
-      {/* RECENTLY VIEWED SECTION */}
-    <h2 style={{marginTop:"50px"}}>Recently Viewed</h2>
+        {/* RECENTLY VIEWED SECTION */}
+      <h2 style={{marginTop:"50px"}}>Recently Viewed</h2>
 
-      <div
-      style={{
-      display:"grid",
-      gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",
-      gap:"20px"
-      }}
-      >
-
-      {recentlyViewed.map(house => (
-
-        <Link
-          key={house.id}
-          to={`/house/${house.id}`}
-          style={{ textDecoration:"none", color:"inherit" }}
+        <div
+          style={{
+          display:"grid",
+          gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",
+          gap:"20px"
+          }}
         >
 
-          <div
-            style={{
-              border:"1px solid #eee",
-              borderRadius:"10px",
-              padding:"10px"
-            }}
+        {recentlyViewed.map(house => (
+
+          <Link
+            key={house.id}
+            to={`/house/${house.id}`}
+            style={{ textDecoration:"none", color:"inherit" }}
           >
 
-            <img
-              src={house.image}
-              alt="house"
+            <div
               style={{
-                width:"100%",
-                height:"160px",
-                objectFit:"cover",
-                borderRadius:"8px"
+                border:"1px solid #eee",
+                borderRadius:"10px",
+                padding:"10px"
               }}
-            />
+            >
 
-            <h4>{house.title}</h4>
+              <img
+                src={house.image_urls?.[0]}
+                onError={(e) => {
+                  e.target.src = "https://via.placeholder.com/300x200?text=No+Image"
+                }}
+                alt={house.title}
 
-            <p>{house.location}</p>
+                style={{
+                  width:"100%",
+                  height:"160px",
+                  objectFit:"cover",
+                  borderRadius:"8px"
+                }}
+              />
 
-            <p>KES {house.price}</p>
+              <h4>{house.title}</h4>
 
-          </div>
+              <p>{house.location}</p>
 
-        </Link>
+              <p>KES {house.price}</p>
 
-      ))}
+            </div>
 
+          </Link>
+
+        ))}
+
+        </div>
       </div>
-    </div>
+      
+      <hr />
 
-    {/* BOTTOM ACTION BAR */}
-    <div
-      style={{
-        marginTop: "80px",
-        padding: "30px 0",
-        borderTop: "1px solid #e8e8e8",
-        display: "flex",
-        justifyContent: "center",
-        gap: "40px",
-        alignItems: "center",
-        fontSize: "14px",
-        letterSpacing: "1px"
-      }}
-    >
-     
-
-      {/* Login / Logout */}
-      {user ? (
-        <span
-          onClick={async () => {
-            await supabase.auth.signOut()
-            navigate("/")
-          }}
-          style={bottomLink}
-        >
-          Log-out
-        </span>
-      ) : (
-        <span
-          onClick={() => navigate("/login")}
-          style={bottomLink}
-        >
-          Log-in
-        </span>        
-      )}
-      <span
-        style={bottomLink}
-        onMouseEnter={(e) => {
-          e.target.style.backgroundColor = "#e6e6e6"
-        }}
-        onMouseLeave={(e) => {
-          e.target.style.backgroundColor = "#f2f2f2"
+      {/* BOTTOM ACTION BAR */}
+      <div
+        style={{
+          marginTop: "80px",
+          backgroundColor: "#c5c7c8",
+          fontSize: "14px",
+          letterSpacing: "1px"
         }}
       >
-      </span>
 
-    </div>
-    </div>
-    
-    )
+      </div>
+
+       
+
+      </div>
+      
+  )
 }
 
 const luxuryInput = {
@@ -502,16 +698,6 @@ const luxuryInput = {
   transition: "all 0.3s ease",
   minWidth: "160px"
   
-}
-
-const bottomLink = {
-  cursor: "pointer",
-  padding: "10px 18px",
-  backgroundColor: "#f2f2f2",
-  borderRadius: "10px",
-  letterSpacing: "1px",
-  fontSize: "13px",
-  transition: "all 0.25s ease"
 }
 
 const searchBar = {

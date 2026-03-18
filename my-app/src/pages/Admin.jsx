@@ -4,6 +4,7 @@ import { supabase } from "../supabase"
 function Admin() {
   const [viewerImages,setViewerImages] = useState([])
   const [viewerIndex,setViewerIndex] = useState(0)
+  const [popularHouses, setPopularHouses] = useState([])
   const [view,setView] = useState("pending")
   const [houses, setHouses] = useState([])
   const [stats, setStats] = useState({
@@ -26,13 +27,13 @@ function Admin() {
     const { count: pendingListings } = await supabase
       .from("houses")
       .select("*", { count: "exact", head: true })
-      .eq("approved", "pending")
+      .eq("approval_status", "pending")
 
-    // APPROVED
+    // APPROVED (available)
     const { count: approvedListings } = await supabase
       .from("houses")
       .select("*", { count: "exact", head: true })
-      .eq("approved", "approved")
+      .eq("approval_status", "approved")
 
     // UNIQUE LANDLORDS
     const { data: landlordsData } = await supabase
@@ -85,11 +86,11 @@ function Admin() {
       .order("created_at",{ascending:false})
 
     if(view === "pending"){
-      query = query.eq("status","pending")
+      query = query.eq("approval_status","pending")
     }
 
     if(view === "approved"){
-      query = query.eq("status","available")
+      query = query.eq("approval_status","approved")
     }
 
     const { data,error } = await query
@@ -108,7 +109,7 @@ function Admin() {
 
     await supabase
       .from("houses")
-      .update({status:"available"})
+      .update({approval_status:"approved"})
       .eq("id",id)
 
     loadListings()
@@ -130,25 +131,27 @@ function Admin() {
   }
 
   //MOST VIEWED LISTINGS
-    async function loadPopular(){
+  async function loadPopular() {
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("houses")
       .select("*")
-      .order("views",{ascending:false})
+      .eq("approval_status", "approved")
+      .order("views", { ascending: false })
       .limit(5)
 
+    if (error) {
+      console.log(error)
+      return
+    }
 
+    setPopularHouses(data || [])
   }
-
   useEffect(()=>{
     loadStats()
     loadPopular()
   },[])
 
-  useEffect(()=>{
-    loadStats()
-  },[])
 
   useEffect(()=>{
     loadListings()
@@ -233,8 +236,6 @@ function Admin() {
       </div>
 
     </div>
-
-
 
     {/* LISTINGS GRID */}
 
@@ -322,7 +323,7 @@ function Admin() {
       <span
         style={{
           background:
-            house.status === "pending" ? "#facc15" : "#16a34a",
+            house.approval_status === "pending" ? "#facc15" : "#16a34a",
           color:"#fff",
           padding:"4px 8px",
           borderRadius:"6px",
@@ -330,7 +331,7 @@ function Admin() {
           textTransform:"capitalize"
         }}
       >
-        {house.status}
+        {house.approval_status}
       </span>
 
   </h3>
@@ -399,7 +400,6 @@ function Admin() {
     </div>
 
 
-
     {/* IMAGE VIEWER MODAL */}
 
     {viewerImages.length > 0 && (
@@ -462,6 +462,57 @@ function Admin() {
     </div>
 
     )}
+
+    <h2 style={{ marginBottom: "20px" }}>🔥
+       Top Viewed Listings</h2>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))",
+          gap: "20px",
+          marginBottom: "40px"
+        }}
+      >
+
+        {popularHouses.map((house) => (
+
+          <div
+            key={house.id}
+            style={{
+              border: "1px solid #eee",
+              borderRadius: "10px",
+              padding: "15px",
+              background: "#fff"
+            }}
+          >
+
+            <img
+              src={house.image_urls?.[0]}
+              alt="house"
+              style={{
+                width: "100%",
+                height: "150px",
+                objectFit: "cover",
+                borderRadius: "8px",
+                marginBottom: "10px"
+              }}
+            />
+
+            <h4>{house.title}</h4>
+            <p>{house.location}</p>
+            <p>KES {house.price}</p>
+
+            <p style={{ fontWeight: "bold", color: "#2563eb" }}>
+              👁 {house.views || 0} views
+            </p>
+
+          </div>
+
+        ))}
+
+      </div>
+
 
     </div>
 
