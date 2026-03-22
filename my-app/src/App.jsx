@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Routes, Route, Navigate } from "react-router-dom"
 import { supabase } from "./supabase"
+import { Toaster } from "react-hot-toast"
 
 import Home from "./pages/Home"
 import Login from "./pages/Login"
@@ -10,6 +11,8 @@ import HouseDetails from "./pages/HouseDetails"
 import LandlordDashboard from "./pages/LandlordDashboard"
 import Navbar from "./components/Navbar.jsx"
 import Admin from "./pages/admin.jsx"
+import Locations from "./pages/Locations.jsx"
+import LocationDetails from "./pages/LocationDetails.jsx"
 
 function App() {
   const ADMIN_EMAIL = "silymily003@gmail.com"
@@ -51,6 +54,7 @@ function App() {
 
   return (
     <>
+      <Toaster position="top-right" />
       <Navbar user={user} />
 
       <Routes>
@@ -65,6 +69,9 @@ function App() {
 
         <Route path="/house/:id" element= {<HouseDetails user={user} />}
         />
+
+        <Route path="/locations" element={<Locations />} />
+        <Route path="/locations/:slug" element={<LocationDetails user={user} />} />
 
        <Route
          path="/dashboard"

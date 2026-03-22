@@ -32,7 +32,7 @@ function Home({ user }) {
   const [trendingHouses, setTrendingHouses] = useState([])
   const loaderRef = useRef(null)
 
-  const featuredHouses = houses.filter(
+    const featuredHouses = houses.filter(
     h =>
       h.is_featured &&
       h.featured_until &&
@@ -43,9 +43,13 @@ function Home({ user }) {
 
   const normalHouses = houses.filter(
     h =>
-      !h.is_featured ||
-      !h.featured_until ||
-      new Date(h.featured_until) < new Date()
+      h.status === "available" &&
+      h.approval_status === "approved" &&
+      (
+        !h.is_featured ||
+        !h.featured_until ||
+        new Date(h.featured_until) < new Date()
+      )
   )
  
 
@@ -286,14 +290,15 @@ function Home({ user }) {
       <div
         style={{
           position: "relative",
-          height: "75vh",
+          minHeight: "75vh",
           width: "100%",
           backgroundImage: `url(${HeroImage})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center"
+          justifyContent: "center",
+          padding: "60px 0"
         }}
       >
       
@@ -341,8 +346,11 @@ function Home({ user }) {
           <div
             style={{
               display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
               gap: "12px",
-              padding: "16px",
+              padding: "20px",
+              marginTop: "30px",
               borderRadius: "16px",
               backdropFilter: "blur(12px)",
               background: "rgba(255,255,255,0.25)",
@@ -351,77 +359,96 @@ function Home({ user }) {
             }}
           >
             
-            <div style={searchBar}>
-              <input
-                type="text"
-                placeholder="Location"
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                style={luxuryInput}
-              />
+            <input
+              type="text"
+              placeholder="Location"
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              style={luxuryInput}
+            />
 
-              <input
-                type="number"
-                placeholder="Min Price"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value)}
-                style={{
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "none",
-                  width: "140px"
-                }}         
-              
-              />
+            <input
+              type="number"
+              placeholder="Min Price"
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              style={luxuryInput}         
+            />
 
-              <input
-                type="number"
-                placeholder="Max Price"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-                style={{
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "none",
-                  width: "140px"
-                }}         
-              />
+            <input
+              type="number"
+              placeholder="Max Price"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              style={luxuryInput}         
+            />
 
-      
-              <select
-                value={bedroomsFilter}
-                onChange={(e) => setBedroomsFilter(e.target.value)}
-                style={luxuryInput}
-              >
-                <option value="">Bedrooms</option>
-                <option value="0">Bedsitter </option>
-                <option value="1">1 Bedroom</option>
-                <option value="2">2 Bedrooms</option>
-                <option value="3">3 Bedrooms</option>
-                <option value="4">4 Bedrooms</option>
-              </select>
+            <select
+              value={bedroomsFilter}
+              onChange={(e) => setBedroomsFilter(e.target.value)}
+              style={luxuryInput}
+            >
+              <option value="">Bedrooms</option>
+              <option value="0">Bedsitter </option>
+              <option value="1">1 Bedroom</option>
+              <option value="2">2 Bedrooms</option>
+              <option value="3">3 Bedrooms</option>
+              <option value="4">4 Bedrooms</option>
+            </select>
 
             <button
               onClick={handleSearch}
               style={{
                 padding: "12px 24px",
-                borderRadius: "10px",
+                borderRadius: "14px",
                 border: "none",
                 background: "#111",
                 color: "white",
                 cursor: "pointer",
-                fontWeight: "600"
+                fontWeight: "600",
+                minWidth: "140px"
               }}
-          >
+            >
               Search
             </button>
-            </div>
 
           </div>
 
         </div>
-
         
+      </div>
+
+      {/* MAIN CONTENT BELOW HERO */}
+      <div 
+      style={{
+      padding: "60px 80px"    
+      }}
+      >
+        {/* Listings */}
+        {/* Skeleton loading cards */}
+        {loading && houses.length === 0 && (
+          <div
+            style={{
+              marginTop: "40px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: "40px"
+            }}
+          >
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  height: "280px",
+                  borderRadius: "18px",
+                  background: "#eee",
+                  animation: "pulse 1.5s infinite"
+                }}
+              />
+            ))}
+          </div>
+        )}
+
       </div>
 
       {/* SEARCH NOT FOUND */}
@@ -505,7 +532,11 @@ function Home({ user }) {
             gap: "20px"
           }}>
             {featuredHouses.map((house) => (
-              <div key={house.id}>
+              <div
+                key={house.id}
+                onClick={() => navigate(`/house/${house.id}`)}
+                style={listingCard}
+              > 
                 <img src={house.image_urls?.[0]} />
                 <h4>{house.title}</h4>
               </div>
@@ -514,10 +545,8 @@ function Home({ user }) {
         </>
       )}
 
-
       {/* TRENDING HOMES */}
       <h2 style={{ marginTop: "30px" }}>🔥 Trending Homes</h2>
-
       <div
         style={{
           display: "grid",
@@ -526,7 +555,6 @@ function Home({ user }) {
           marginBottom: "40px"
         }}
       >
-
         {trendingHouses.map((house) => (
 
           <div
@@ -562,58 +590,52 @@ function Home({ user }) {
             </div>
 
           </div>
-
         ))}
-
       </div>
 
-      {/* MAIN CONTENT BELOW HERO */}
-      <div 
-      style={{
-      padding: "60px 80px"    
-      }}
-      >
+      {/*NORMALHOUSES*/}
+      {normalHouses.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: "25px",
+            marginTop: "40px"
+          }}
+        >
+          {normalHouses.map((house) => (
+            <div
+              key={house.id}
+              onClick={() => navigate(`/house/${house.id}`)}
+              style={listingCard}
+            >
+              {house.image_urls?.length > 0 && (
+                <img
+                  src={house.image_urls[0]}
+                  alt={house.title}
+                  style={{
+                    width: "100%",
+                    height: "180px",
+                    objectFit: "cover"
+                  }}
+                />
+              )}
 
-        {/* Listings */}
-        {/* Skeleton loading cards */}
-        {loading && houses.length === 0 && (
-          <div
-            style={{
-              marginTop: "40px",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-              gap: "40px"
-            }}
-          >
-            {[...Array(6)].map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  height: "280px",
-                  borderRadius: "18px",
-                  background: "#eee",
-                  animation: "pulse 1.5s infinite"
-                }}
-              />
-            ))}
-          </div>
-        )}
+              <div style={{ padding: "15px" }}>
+                <h4>{house.title}</h4>
+                <p>{house.location}</p>
 
-      {/* Actual houses */}
-      <div
-        style={{
-          marginTop: "40px",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-          gap: "40px"
-        }}
-      >
-      </div>
-      
+                <p style={{ fontWeight: "600" }}>
+                  Ksh {Number(house.price).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-        {/* RECENTLY VIEWED SECTION */}
-      <h2 style={{marginTop:"50px"}}>Recently Viewed</h2>
-
+      {/* RECENTLY VIEWED SECTION */}
+      <h2 style={{marginTop:"50px"}}>Recently    Viewed</h2>
         <div
           style={{
           display:"grid",
@@ -621,7 +643,6 @@ function Home({ user }) {
           gap:"20px"
           }}
         >
-
         {recentlyViewed.map(house => (
 
           <Link
@@ -629,7 +650,6 @@ function Home({ user }) {
             to={`/house/${house.id}`}
             style={{ textDecoration:"none", color:"inherit" }}
           >
-
             <div
               style={{
                 border:"1px solid #eee",
@@ -660,14 +680,10 @@ function Home({ user }) {
               <p>KES {house.price}</p>
 
             </div>
-
           </Link>
-
         ))}
-
         </div>
-      </div>
-      
+     
       <hr />
 
       {/* BOTTOM ACTION BAR */}
@@ -675,14 +691,9 @@ function Home({ user }) {
         style={{
           marginTop: "80px",
           backgroundColor: "#c5c7c8",
-          fontSize: "14px",
-          letterSpacing: "1px"
         }}
       >
-
       </div>
-
-       
 
       </div>
       
@@ -701,16 +712,14 @@ const luxuryInput = {
 }
 
 const searchBar = {
-  display: "flex",
-  gap: "12px",
-  justifyContent: "center",
-  alignItems: "center",
-  flexWrap: "wrap",
-  marginTop: "20px",
-  padding: "18px",
-  background: "rgba(255,255,255,0.9)",
-  borderRadius: "14px",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.08)"
+  // Styles have been moved inline to the container
+}
+
+const listingCard={
+  background: "#fff",
+  borderRadius: "12px",
+  overflow: "hidden",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.08)"
 }
 
 export default Home

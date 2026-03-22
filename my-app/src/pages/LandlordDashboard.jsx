@@ -71,33 +71,22 @@ function LandlordDashboard({ user }) {
       .from("houses")
       .select("*")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-
-    if (!error) 
-    setLoading(false)
-
-    .order("is_featured", { ascending: false })
-    .order("created_at", { ascending: false })
-  }
-
-  async function loadListings() {
-    const { data, error } = await supabase
-      .from("houses")
-      .select("*")
-      .eq("user_id", user.id) // important: only landlord's houses
-      .order("created_at", { ascending: false })
+      .order("is_featured", { ascending: false }) // first priority
+      .order("created_at", { ascending: false })  // second priority
 
     if (error) {
       console.log(error)
+      setLoading(false)
       return
     }
 
     setHouses(data || [])
+    setLoading(false)
+
   }
 
-  useEffect(() => {
-    loadListings()
-  }, [])
+ 
+  
   
   // Upload images
   async function uploadImages() {
@@ -326,7 +315,7 @@ function LandlordDashboard({ user }) {
   }
 
   // refresh UI
-  loadListings() // or loadListings depending on your file
+  fetchMyHouses() // or loadListings depending on your file
   }
 
   // Edit listing
@@ -684,6 +673,13 @@ function LandlordDashboard({ user }) {
                     : "Mark as Available"}
                 </button>
                 )}
+
+                <button
+                  onClick={() => handleFeature(house.id)}
+                  style={featureButton}
+                >
+                <h3> Featured Listing ⭐</h3>
+                </button>
                 </div>
               </div>
             </div>
@@ -698,12 +694,7 @@ function LandlordDashboard({ user }) {
         </p>
       )}
 
-      <button
-        onClick={() => handleFeature(house.id)}
-        style={{ background: "gold", color: "black" }}
-      >
-       <h3> Featured Listing ⭐</h3>
-      </button>
+      
     </div>
   )
 }
@@ -768,5 +759,13 @@ const checkboxLabel = {
   marginTop: "8px",
   fontSize: "14px"
 }
+
+const featureButton={ 
+  background: "gold", 
+  color: "black",
+  border: "none",
+  marginTop:"12px",
+  borderRadius: "5px"
+} 
 
 export default LandlordDashboard

@@ -11,8 +11,11 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
+    "osm-kenya-boundaries": "^1.0.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-hot-toast": "^2.6.0",
+    "react-paystack": "^6.0.0",
     "react-router-dom": "^6.30.3"
   },
   "devDependencies": {
