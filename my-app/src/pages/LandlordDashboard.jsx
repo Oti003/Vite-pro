@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../supabase"
+import imageCompression from "browser-image-compression"
 
 function LandlordDashboard({ user }) {
   const navigate = useNavigate()
+  const [hasMore, setHasMore] = useState(true)
 
   const [houses, setHouses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -40,8 +42,34 @@ function LandlordDashboard({ user }) {
     "Gym"
   ];
 
+  const LIMIT = 10
+  const [page, setPage] = useState(0)
 
+  async function fetchMyHouses() {
+    setLoading(true)
 
+    const from = page * LIMIT
+    const to = from + LIMIT - 1
+
+    const { data, error } = await supabase
+      .from("houses")
+      .select("id, title, location, price, status, image_urls, created_at, approval_status, rental_type")
+      .eq("user_id", user.id)
+      .order("is_featured", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(from, to)
+
+    if (error) {
+      console.log(error)
+      setLoading(false)
+      return
+    }
+
+    setHouses(data || [])
+    setLoading(false)
+  }
+
+  
   const handleAmenityChange = (e) => {
     const value = e.target.value
 
@@ -62,31 +90,8 @@ function LandlordDashboard({ user }) {
   // Fetch landlord listings
   useEffect(() => {
     if (user) fetchMyHouses()
-  }, [user])
+  }, [user, page])
 
-  async function fetchMyHouses() {
-    setLoading(true)
-
-    const { data, error } = await supabase
-      .from("houses")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("is_featured", { ascending: false }) // first priority
-      .order("created_at", { ascending: false })  // second priority
-
-    if (error) {
-      console.log(error)
-      setLoading(false)
-      return
-    }
-
-    setHouses(data || [])
-    setLoading(false)
-
-  }
-
- 
-  
   
   // Upload images
   async function uploadImages() {
@@ -122,6 +127,7 @@ function LandlordDashboard({ user }) {
   function sanitize(text){
       return text.replace(/</g,"&lt;").replace(/>/g,"&gt;")
     }
+
 
   // Create or Update Listing
   async function handleSubmit(e) {
@@ -164,7 +170,7 @@ function LandlordDashboard({ user }) {
         .from("houses")
         .update({
           title,
-          location,
+          location_slug: location.toLowerCase().replace(/\s+/g, "-"),
           price: parseInt(price),
           landlord_phone: phone,
           amenities: selectedAmenities,
@@ -243,7 +249,7 @@ function LandlordDashboard({ user }) {
         .insert([
           {
           title: sanitize(title),
-          location: sanitize(location),
+          location_slug: location.toLowerCase().replace(/\s+/g, "-"),
           price: parseInt(price),
           bedrooms: parseInt(bedrooms),
           landlord_phone: phone,
@@ -325,9 +331,10 @@ function LandlordDashboard({ user }) {
     setLocation(house.location)
     setPrice(house.price)
     setPhone(house.landlord_phone || "")
-    setSelectedAmenities(house.amenities || "")
-    setDescription(house.description || [])
+    setSelectedAmenities(house.amenities || [])
+    setDescription(house.description || "")
     setRentalType(house.rental_type || "monthly")
+    setHasMore(data.length === LIMIT)
   }
 
   async function handleFeature(houseId) {
@@ -353,6 +360,7 @@ function LandlordDashboard({ user }) {
 
     alert("Listing featured successfully 🚀")
   }
+  
 
   return (
     <div
@@ -695,6 +703,29 @@ function LandlordDashboard({ user }) {
       )}
 
       
+
+
+      <p style={{ textAlign: "center",   marginTop: "20px", color: "#555" }}>
+        Page {page + 1}
+      </p>
+      <div style={paginationWrapper}>
+        <button
+          onClick={() => setPage(p => Math.max(p - 1, 0))}
+          style={paginationButton}
+          disabled={page === 0}
+        >
+          Prev
+        </button>
+
+        <button
+          onClick={() => setPage(p => p + 1)}
+          style={paginationButton}
+        >
+          Next
+        </button>
+      </div>
+
+      
     </div>
   )
 }
@@ -767,5 +798,23 @@ const featureButton={
   marginTop:"12px",
   borderRadius: "5px"
 } 
+
+const paginationWrapper = {
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: "15px",
+  marginTop: "30px"
+}
+
+const paginationButton = {
+  padding: "8px 16px",
+  borderRadius: "6px",
+  border: "none",
+  background: "#2563eb",
+  color: "white",
+  cursor: "pointer",
+  fontWeight: "500"
+}
 
 export default LandlordDashboard

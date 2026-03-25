@@ -12,7 +12,8 @@ import LandlordDashboard from "./pages/LandlordDashboard"
 import Navbar from "./components/Navbar.jsx"
 import Admin from "./pages/admin.jsx"
 import Locations from "./pages/Locations.jsx"
-import LocationDetails from "./pages/LocationDetails.jsx"
+import LocationResults from "./pages/LocationResults"
+
 
 function App() {
   const ADMIN_EMAIL = "silymily003@gmail.com"
@@ -70,9 +71,6 @@ function App() {
         <Route path="/house/:id" element= {<HouseDetails user={user} />}
         />
 
-        <Route path="/locations" element={<Locations />} />
-        <Route path="/locations/:slug" element={<LocationDetails user={user} />} />
-
        <Route
          path="/dashboard"
          element={user ? <LandlordDashboard  user={user} /> : <Navigate to="/login" 
@@ -87,6 +85,11 @@ function App() {
               : <Navigate to="/" />
           }
         />
+
+        < Route path="/locations" element= {<Locations />} 
+        />
+        < Route path="/locations/:location" element={<LocationResults />} 
+        />    
 
       </Routes>
     </>

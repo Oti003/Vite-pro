@@ -106,29 +106,6 @@ function Navbar({ user }) {
           }
         />
 
-        {/* Locations */}
-        <button
-          onClick={() => navigate("/locations")}
-          style={{
-            background: "none",
-            border: "none",
-            fontSize: "16px",
-            fontWeight: "600",
-            cursor: "pointer",
-            color: "#333",
-            padding: "8px 12px",
-            borderRadius: "8px"
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "rgba(0,0,0,0.05)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
-        >
-          Locations
-        </button>
-
         {/* Account Menu */}
         <div ref={dropdownRef} style={{ position: "relative" }}>
 
