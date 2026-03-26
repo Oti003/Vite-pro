@@ -9,7 +9,7 @@ const Signup = lazy(() => import("./pages/Signup"))
 const HouseDetails = lazy(() => import("./pages/HouseDetails"))
 const LandlordDashboard = lazy(() => import("./pages/LandlordDashboard"))
 import Navbar from "./components/Navbar.jsx"
-const Admin = lazy(() => import("./pages/admin.jsx"))
+const Admin = lazy(() => import("./pages/Admin.jsx"))
 const Locations = lazy(() => import("./pages/Locations.jsx"))
 const LocationResults = lazy(() => import("./pages/LocationResults"))
 
