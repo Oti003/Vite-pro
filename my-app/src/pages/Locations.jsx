@@ -2,7 +2,6 @@
 import { counties, subCounties, wards } from "../utils/kenyaLocations"
 import { useNavigate } from "react-router-dom"
 import { useState } from "react"
-import KenyaMap from "../components/KenyaMap"
 
 const slugify = (name) => name.toLowerCase().replace(/[\s_]+/g, "-")
 
@@ -138,21 +137,24 @@ function Locations() {
 
       {!selectedCounty && (
         <div style={{ marginBottom: "40px" }}>
-          <KenyaMap
-            onSelectCounty={(countyName) => {
-              const normalize = (n) =>
-                n.toLowerCase().replace(" county", "").trim()
-
-              const found = counties.find(
-                c => normalize(c.name) === normalize(countyName)
-              )
-
-              if (found) handleCountyClick(found)
+          <div
+            style={{
+              background: "#f8f8f8",
+              border: "1px solid #e5e5e5",
+              borderRadius: "12px",
+              padding: "20px",
+              textAlign: "center"
             }}
-          />
-          <KenyaMap onSelectLocation={setSelectedLocation} />
-
-          <p>Selected: {selectedLocation}</p>
+          >
+            <p style={{ margin: 0, color: "#555" }}>
+              Map view is temporarily unavailable while the location feature dependencies are disabled.
+            </p>
+            {selectedLocation && (
+              <p style={{ marginTop: "12px", fontWeight: "600" }}>
+                Selected: {selectedLocation}
+              </p>
+            )}
+          </div>
         </div>
       )}
      
