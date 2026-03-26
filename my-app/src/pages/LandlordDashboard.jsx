@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../supabase"
-
+import { toast } from "react-hot-toast"
 import imageCompression from "browser-image-compression"
 
 // Normalize location text to title case (e.g., "WESTLAND" → "Westland")
@@ -34,6 +34,14 @@ function LandlordDashboard({ user }) {
   const [editingId, setEditingId] = useState(null)
   const [rentalType, setRentalType] = useState("monthly")
   const [selectedAmenities, setSelectedAmenities] = useState([])
+  
+  // Feature modal state
+  const [showFeatureModal, setShowFeatureModal] = useState(false)
+  const [paymentPhone, setPaymentPhone] = useState("")
+  const [houseToFeature, setHouseToFeature] = useState(null)
+  const [paymentStatus, setPaymentStatus] = useState(null)
+  const [paymentStatusMessage, setPaymentStatusMessage] = useState("")
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false)
   
   const totalListings = houses.length
 
@@ -381,27 +389,140 @@ function LandlordDashboard({ user }) {
   }
 
   async function handleFeature(houseId) {
-    // TEMP: simulate payment success
-    const paymentSuccessful = true
+    setHouseToFeature(houseId)
+    setPaymentStatus(null)
+    setPaymentStatusMessage("")
+    setShowFeatureModal(true)
+  }
 
-    if (!paymentSuccessful) return
+  async function pollPaymentStatus(houseId, timeoutMs = 90000) {
+    setIsCheckingPayment(true)
+    const startedAt = Date.now()
 
-    const days = 7 // feature for 7 days
+    while (Date.now() - startedAt < timeoutMs) {
+      const { data, error } = await supabase
+        .from("mpesa_feature_payments")
+        .select("status, result_desc, response_description, customer_message, receipt_number, created_at")
+        .eq("house_id", houseId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-    const { error } = await supabase
-      .from("houses")
-      .update({
-        is_featured: true,
-        featured_until: new Date(Date.now() + days * 24 * 60 * 60 * 1000)
-      })
-      .eq("id", houseId)
+      if (!error && data) {
+        if (data.status === "completed") {
+          setPaymentStatus("completed")
+          setPaymentStatusMessage(
+            data.receipt_number
+              ? `Payment completed. Receipt: ${data.receipt_number}.`
+              : "Payment completed successfully."
+          )
+          setIsCheckingPayment(false)
+          return "completed"
+        }
 
-    if (error) {
-      console.log(error)
+        if (data.status === "failed") {
+          setPaymentStatus("failed")
+          setPaymentStatusMessage(
+            data.result_desc ||
+              data.response_description ||
+              data.customer_message ||
+              "M-Pesa reported that the payment did not complete."
+          )
+          setIsCheckingPayment(false)
+          return "failed"
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 4000))
+    }
+
+    setPaymentStatus("pending")
+    setPaymentStatusMessage("Still waiting for sandbox confirmation. Check your phone and Supabase logs.")
+    setIsCheckingPayment(false)
+    return "pending"
+  }
+
+  async function processFeaturePayment() {
+    if (!paymentPhone || !paymentPhone.trim()) {
+      toast.error("Please enter a phone number")
       return
     }
 
-    alert("Listing featured successfully 🚀")
+    const FEATURE_PRICE = 99 // Amount in KES (use 99 KES for testing)
+    const toastId = toast.loading("Initiating M-Pesa payment...")
+    setPaymentStatus("starting")
+    setPaymentStatusMessage("Sending STK request to M-Pesa sandbox...")
+
+    try {
+      // Call Supabase Edge Function to initiate STK Push
+      const response = await supabase.functions.invoke("stk-push", {
+        body: {
+          phone: paymentPhone,
+          amount: FEATURE_PRICE,
+          houseId: houseToFeature
+        }
+      })
+
+      if (response.error) {
+        toast.dismiss(toastId)
+        setPaymentStatus("failed")
+        setPaymentStatusMessage(response.error.message || "Failed to initiate payment")
+        setIsCheckingPayment(false)
+        toast.error(`Payment error: ${response.error.message || "Failed to initiate payment"}`)
+        return
+      }
+
+      const stkData = response.data
+      console.log("STK push response:", stkData)
+
+      const mpesaReason = [
+        stkData?.errorMessage,
+        stkData?.ResponseDescription,
+        stkData?.CustomerMessage,
+        stkData?.message,
+        stkData?.errorCode ? `Code ${stkData.errorCode}` : null,
+        stkData?.ResponseCode ? `Response ${stkData.ResponseCode}` : null
+      ]
+        .filter(Boolean)
+        .join(" | ")
+
+      // Check M-Pesa response
+      if (stkData.errorCode || stkData.ResponseCode !== "0") {
+        toast.dismiss(toastId)
+        setPaymentStatus("failed")
+        setPaymentStatusMessage(mpesaReason || "Payment initiation failed")
+        setIsCheckingPayment(false)
+        toast.error(`M-Pesa Error: ${mpesaReason || "Payment initiation failed"}`)
+        return
+      }
+
+      toast.dismiss(toastId)
+      setPaymentStatus("pending")
+      setPaymentStatusMessage("STK request accepted. Waiting for sandbox callback...")
+      toast.success("Payment prompt sent to your phone! Complete the payment to feature your listing.")
+
+      const finalStatus = await pollPaymentStatus(houseToFeature)
+
+      if (finalStatus === "failed") {
+        toast.error("Payment was not completed.")
+        return
+      }
+
+      if (finalStatus !== "completed") {
+        return
+      }
+
+      toast.success("Listing featured for 7 days! 🚀")
+      fetchMyHouses() // Refresh listings
+      setShowFeatureModal(false) // Close modal
+      setPaymentPhone("") // Reset phone
+      setHouseToFeature(null) // Reset house
+
+    } catch (err) {
+      toast.dismiss(toastId)
+      console.log("Feature error:", err)
+      toast.error("Something went wrong. Please try again.")
+    }
   }
   
 
@@ -720,7 +841,6 @@ function LandlordDashboard({ user }) {
                     padding: "6px",
                     borderRadius: "2px",
                     border: "none",
-                    cursor: "pointer",
                     background:
                       house.approval_status !== "approved"
                         ? "#ccc"
@@ -739,12 +859,17 @@ function LandlordDashboard({ user }) {
                 </button>
                 )}
 
+                {/* COMPLETE BY RECIEVING THE PROMPT ON YOUR PHONE AND COMPLETE THE TRANSACTION */}
+
+                {/* 
                 <button
                   onClick={() => handleFeature(house.id)}
                   style={featureButton}
                 >
-                <h3> Featured Listing ⭐</h3>
-                </button>
+                <h3> Featured Listing ⭐</h3> 
+                </button> 
+                */}
+
                 </div>
               </div>
             </div>
@@ -781,7 +906,140 @@ function LandlordDashboard({ user }) {
           Next
         </button>
       </div>
+      
+      
+      {/* FEATURE PAYMENT MODAL*/} 
+        {showFeatureModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              padding: "30px",
+              borderRadius: "12px",
+              maxWidth: "400px",
+              width: "90%",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.3)"
+            }}
+          >
+            <h3 style={{ marginBottom: "20px", textAlign: "center", color: "#333" }}>
+              Feature Your Listing ⭐
+            </h3>
 
+            <p style={{ marginBottom: "20px", color: "#666", textAlign: "center" }}>
+              Enter your M-Pesa phone number to pay KSh 99 for 7 days of featured listing.
+            </p>
+
+            <input
+              type="tel"
+              //placeholder="e.g., +254712345678 or 0712345678"
+              value={paymentPhone}
+              onChange={(e) => setPaymentPhone(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "12px",
+                border: "2px solid #e1e5e9",
+                borderRadius: "8px",
+                fontSize: "16px",
+                marginBottom: "20px",
+                outline: "none"
+              }}
+              autoFocus
+            />
+
+            {paymentStatus && (
+              <div
+                style={{
+                  marginBottom: "20px",
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  background:
+                    paymentStatus === "completed"
+                      ? "#dcfce7"
+                      : paymentStatus === "failed"
+                      ? "#fee2e2"
+                      : "#eff6ff",
+                  color:
+                    paymentStatus === "completed"
+                      ? "#166534"
+                      : paymentStatus === "failed"
+                      ? "#991b1b"
+                      : "#1d4ed8",
+                  fontSize: "14px",
+                  lineHeight: 1.5
+                }}
+              >
+                <strong style={{ display: "block", marginBottom: "4px" }}>
+                  {paymentStatus === "starting"
+                    ? "Starting payment"
+                    : paymentStatus === "pending"
+                    ? isCheckingPayment
+                      ? "Waiting for callback"
+                      : "Still pending"
+                    : paymentStatus === "completed"
+                    ? "Payment completed"
+                    : "Payment failed"}
+                </strong>
+                <span>{paymentStatusMessage}</span>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+              <button
+                onClick={() => {
+                  setShowFeatureModal(false)
+                  setPaymentPhone("")
+                  setHouseToFeature(null)
+                  setPaymentStatus(null)
+                  setPaymentStatusMessage("")
+                }}
+                disabled={isCheckingPayment}
+                style={{
+                  padding: "10px 20px",
+                  background: "#6b7280",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: isCheckingPayment ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: isCheckingPayment ? 0.7 : 1
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={processFeaturePayment}
+                disabled={isCheckingPayment}
+                style={{
+                  padding: "10px 20px",
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: isCheckingPayment ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  opacity: isCheckingPayment ? 0.7 : 1
+                }}
+              >
+                {isCheckingPayment ? "Checking..." : "Pay KSh 99"}
+              </button>
+            </div>
+          </div>
+        </div>
+         )}
+      
+        
       
     </div>
   )

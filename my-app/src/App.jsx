@@ -1,18 +1,17 @@
-import { useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { Routes, Route, Navigate } from "react-router-dom"
 import { supabase } from "./supabase"
 import { Toaster } from "react-hot-toast"
 
-import Home from "./pages/Home"
-import Login from "./pages/Login"
-import Signup from "./pages/Signup"
-
-import HouseDetails from "./pages/HouseDetails"
-import LandlordDashboard from "./pages/LandlordDashboard"
+const Home = lazy(() => import("./pages/Home"))
+const Login = lazy(() => import("./pages/Login"))
+const Signup = lazy(() => import("./pages/Signup"))
+const HouseDetails = lazy(() => import("./pages/HouseDetails"))
+const LandlordDashboard = lazy(() => import("./pages/LandlordDashboard"))
 import Navbar from "./components/Navbar.jsx"
-import Admin from "./pages/admin.jsx"
-import Locations from "./pages/Locations.jsx"
-import LocationResults from "./pages/LocationResults"
+const Admin = lazy(() => import("./pages/admin.jsx"))
+const Locations = lazy(() => import("./pages/Locations.jsx"))
+const LocationResults = lazy(() => import("./pages/LocationResults"))
 
 
 function App() {
@@ -58,43 +57,45 @@ function App() {
       <Toaster position="top-right" />
       <Navbar user={user} />
 
-      <Routes>
-        <Route path="/" element={<Home user={user} />} />
+      <Suspense fallback={<p style={{ padding: "20px" }}>Loading page...</p>}>
+        <Routes>
+          <Route path="/" element={<Home user={user} />} />
 
-        <Route 
-        path="/login" element={<Login user={user} />} />
+          <Route 
+          path="/login" element={<Login user={user} />} />
 
-        <Route
-         path="/signup" element={<Signup user={user} />} 
-        />
+          <Route
+           path="/signup" element={<Signup user={user} />} 
+          />
 
-        <Route path="/house/:id" element= {<HouseDetails user={user} />}
-        />
+          <Route path="/house/:id" element= {<HouseDetails user={user} />}
+          />
 
-       <Route
-         path="/dashboard"
-         element={user ? <LandlordDashboard  user={user} /> : <Navigate to="/login" 
-         />}
-       />
+         <Route
+           path="/dashboard"
+           element={user ? <LandlordDashboard  user={user} /> : <Navigate to="/login" 
+           />}
+         />
 
-        <Route
-          path="/admin"
-          element={
-            user
-              ? (user.email === ADMIN_EMAIL
-                  ? <Admin user={user} />
-                  : <Navigate to="/" />
-                )
-              : <Navigate to="/login" />
-          }
-        />
+          <Route
+            path="/admin"
+            element={
+              user
+                ? (user.email === ADMIN_EMAIL
+                    ? <Admin user={user} />
+                    : <Navigate to="/" />
+                  )
+                : <Navigate to="/login" />
+            }
+          />
 
-        < Route path="/locations" element= {<Locations />} 
-        />
-        < Route path="/locations/:location" element={<LocationResults />} 
-        />    
+          < Route path="/locations" element= {<Locations />} 
+          />
+          < Route path="/locations/:location" element={<LocationResults />} 
+          />    
 
-      </Routes>
+        </Routes>
+      </Suspense>
     </>
   )
 }

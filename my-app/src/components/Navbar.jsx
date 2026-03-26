@@ -1,9 +1,26 @@
 import { useEffect, useState, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../supabase"
-import UserIcon from "../assets/User_icon.png"
 import RhomeLogo from "../assets/Rhome_logo.png"
-import HomeIcon from "../assets/Home_icon.png"
+
+function HomeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" {...props}>
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5.5 9.5V20h13V9.5" />
+      <path d="M10 20v-5h4v5" />
+    </svg>
+  )
+}
+
+function UserIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" {...props}>
+      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
+    </svg>
+  )
+}
 
 function Navbar({ user }) {
   const [scrolled, setScrolled] = useState(false)
@@ -93,9 +110,7 @@ function Navbar({ user }) {
       <div style={{ display: "flex", alignItems: "center", gap: "18px" }}>
 
         {/* Home */}
-        <img
-          src={HomeIcon}
-          alt="Home"
+        <HomeIcon
           onClick={() => navigate("/")}
           style={homeIcon}
           onMouseEnter={(e) =>
@@ -109,9 +124,8 @@ function Navbar({ user }) {
         {/* Account Menu */}
         <div ref={dropdownRef} style={{ position: "relative" }}>
 
-          <img
-            src={UserIcon}
-            alt="Account"
+          <UserIcon
+            aria-label="Account"
             onClick={() => setMenuOpen(!menuOpen)}
             style={userIcon}
             onMouseEnter={(e) =>
@@ -203,12 +217,16 @@ const authLink= {
   color: "#c0392b"
 }
 const homeIcon= {
+  width: "26px",
   height: "26px",
+  padding: "4px",
+  borderRadius: "8px",
   cursor: "pointer",
   transition: "all 0.25s ease",
   opacity: 1.0
 }
 const userIcon={
+  width: "30px",
   height: "30px",
   padding: "6px",
   borderRadius: "50%",

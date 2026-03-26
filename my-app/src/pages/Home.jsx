@@ -31,7 +31,6 @@ function Home({ user }) {
   const [recentlyViewed,setRecentlyViewed] = useState([])
 
   const [locationFilter, setLocationFilter] = useState("")
-  const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
   const [bedroomsFilter, setBedroomsFilter] = useState("")
 
@@ -45,7 +44,6 @@ function Home({ user }) {
   const [newComment, setNewComment] = useState("")
 
   const [debouncedLocation, setDebouncedLocation] = useState("")
-  const [debouncedMinPrice, setDebouncedMinPrice] = useState("")
   const [debouncedMaxPrice, setDebouncedMaxPrice] = useState("")
   const [debouncedBedrooms, setDebouncedBedrooms] = useState("")
 
@@ -93,7 +91,6 @@ function Home({ user }) {
 
   function clearFilters() {
     setLocationFilter("")
-    setMinPrice("")
     setMaxPrice("")
     setBedroomsFilter("")
     
@@ -107,13 +104,12 @@ function Home({ user }) {
   useEffect(() => {
     const timeout = setTimeout(() => {
       setDebouncedLocation(locationFilter)
-      setDebouncedMinPrice(minPrice)
       setDebouncedMaxPrice(maxPrice)
       setDebouncedBedrooms(bedroomsFilter)
     }, 500)
 
     return () => clearTimeout(timeout)
-  }, [locationFilter, minPrice, maxPrice, bedroomsFilter])
+  }, [locationFilter, maxPrice, bedroomsFilter])
 
   // ---------------- LOAD SAVED ----------------
   async function loadSavedHouses(userId) {
@@ -160,9 +156,6 @@ function Home({ user }) {
       const normalizedLocation = normalizeLocation(debouncedLocation)
       query = query.ilike("location", `%${normalizedLocation}%`)
     }
-
-    if (debouncedMinPrice && !isNaN(debouncedMinPrice))
-      query = query.gte("price", parseInt(debouncedMinPrice))
 
     if (debouncedMaxPrice && !isNaN(debouncedMaxPrice))
       query = query.lte("price", parseInt(debouncedMaxPrice))
@@ -351,7 +344,6 @@ function Home({ user }) {
     fetchHouses(true)
   },[
     debouncedLocation,
-    debouncedMinPrice,
     debouncedMaxPrice,
     debouncedBedrooms
   ])
@@ -520,14 +512,6 @@ function Home({ user }) {
 
             <input
               type="number"
-              placeholder="Min Price"
-              value={minPrice}
-              onChange={(e) => setMinPrice(e.target.value)}
-              style={luxuryInput}         
-            />
-
-            <input
-              type="number"
               placeholder="Max Price"
               value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
@@ -682,14 +666,13 @@ function Home({ user }) {
             gap: "20px"
           }}>
             {featuredHouses.map((house) => (
-              <div
+              <HouseCard
                 key={house.id}
-                onClick={() => navigate(`/house/${house.id}`)}
-                style={listingCard}
-              > 
-                <img src={house.image_urls?.[0]} />
-                <h4>{house.title}</h4>
-              </div>
+                house={house}
+                user={user}
+                savedIds={savedIds}
+                setSavedIds={setSavedIds}
+              />
             ))}
           </div>
         </>
