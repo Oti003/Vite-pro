@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../supabase"
 
-function Admin() {
+const ADMIN_EMAIL = "silymily003@gmail.com"
+
+function Admin({ user }) {
+  const navigate = useNavigate()
   const [viewerImages,setViewerImages] = useState([])
   const [viewerIndex,setViewerIndex] = useState(0)
   const [popularHouses, setPopularHouses] = useState([])
@@ -147,6 +151,20 @@ function Admin() {
 
     setPopularHouses(data || [])
   }
+
+  // Security: Verify admin access
+  useEffect(() => {
+    if (!user) {
+      navigate("/login")
+      return
+    }
+
+    if (user.email !== ADMIN_EMAIL) {
+      navigate("/")
+      return
+    }
+  }, [user, navigate])
+
   useEffect(()=>{
     loadStats()
     loadPopular()

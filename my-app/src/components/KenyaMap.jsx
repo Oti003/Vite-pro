@@ -2,13 +2,12 @@ import { MapContainer, TileLayer, GeoJSON } from "react-leaflet"
 import { useNavigate } from "react-router-dom"
 import kenyaGeoJson from "../utils/kenya.json"
 
-function KenyaMap() {
+function KenyaMap({ onSelectLocation }) {
   const navigate = useNavigate()
 
   const handleClick = (name) => {
     if (!name) return
-    const slug = name.toLowerCase().replace(/\s+/g, "-")
-    navigate(`/locations/${slug}`)
+    onSelectLocation(name)
   }
 
   function onEachFeature(feature, layer) {

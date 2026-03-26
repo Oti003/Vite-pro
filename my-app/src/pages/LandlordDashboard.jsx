@@ -1,9 +1,23 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../supabase"
+
 import imageCompression from "browser-image-compression"
 
+// Normalize location text to title case (e.g., "WESTLAND" → "Westland")
+function normalizeLocation(location) {
+  if (!location) return ""
+  return location
+    .trim()
+    .toLowerCase()
+    .split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
 function LandlordDashboard({ user }) {
+  const [selectedLocation, setSelectedLocation] = useState("")
+  
   const navigate = useNavigate()
   const [hasMore, setHasMore] = useState(true)
 
@@ -48,25 +62,25 @@ function LandlordDashboard({ user }) {
   async function fetchMyHouses() {
     setLoading(true)
 
-    const from = page * LIMIT
-    const to = from + LIMIT - 1
+  const from = page * LIMIT
+  const to = from + LIMIT - 1
 
-    const { data, error } = await supabase
-      .from("houses")
-      .select("id, title, location, price, status, image_urls, created_at, approval_status, rental_type")
-      .eq("user_id", user.id)
-      .order("is_featured", { ascending: false })
-      .order("created_at", { ascending: false })
-      .range(from, to)
+  const { data, error } = await supabase
+    .from("houses")
+    .select("id, title, location, price, status, image_urls, created_at, approval_status, rental_type")
+    .eq("user_id", user.id)
+    .order("is_featured", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(from, to)
 
-    if (error) {
-      console.log(error)
-      setLoading(false)
-      return
-    }
-
-    setHouses(data || [])
+  if (error) {
+    console.log(error)
     setLoading(false)
+    return
+  }
+
+  setHouses(data || [])
+  setLoading(false)
   }
 
   
@@ -126,15 +140,37 @@ function LandlordDashboard({ user }) {
 
   function sanitize(text){
       return text.replace(/</g,"&lt;").replace(/>/g,"&gt;")
-    }
-
+  }
 
   // Create or Update Listing
   async function handleSubmit(e) {
     e.preventDefault()
 
-    if (!title || !location || !price || !phone || selectedAmenities.length === 0) {
-      alert("All fields must be filled")
+    const finalLocation = selectedLocation || location
+
+    // Validate required fields including location
+    if (!title.trim()) {
+      alert("Please enter a title")
+      return
+    }
+
+    if (!finalLocation.trim()) {
+      alert("Please select or enter a location/ward")
+      return
+    }
+
+    if (!price || isNaN(price) || parseInt(price) <= 0) {
+      alert("Please enter a valid price")
+      return
+    }
+
+    if (!phone.trim()) {
+      alert("Please enter a phone number")
+      return
+    }
+
+    if (selectedAmenities.length === 0) {
+      alert("Please select at least one amenity")
       return
     }
 
@@ -142,7 +178,6 @@ function LandlordDashboard({ user }) {
 
 
     // Only upload images when creating a new listing
-
     if (!editingId) {
       if (images.length < 6) {
         alert("Upload at least 6 images")
@@ -170,7 +205,8 @@ function LandlordDashboard({ user }) {
         .from("houses")
         .update({
           title,
-          location_slug: location.toLowerCase().replace(/\s+/g, "-"),
+          location: sanitize(normalizeLocation(finalLocation)),
+          location_slug: normalizeLocation(finalLocation).toLowerCase().replace(/\s+/g, "-"),
           price: parseInt(price),
           landlord_phone: phone,
           amenities: selectedAmenities,
@@ -190,10 +226,11 @@ function LandlordDashboard({ user }) {
       setEditingId(null)
     } else {
       // CHECK FOR POSSIBLE DUPLICATES
+      const normalizedLocation = normalizeLocation(finalLocation)
       const { data: existing } = await supabase
         .from("houses")
         .select("id, price, title, image_urls")
-        .ilike("location", location)
+        .ilike("location", normalizedLocation)
 
       let duplicateFound = false
 
@@ -249,7 +286,8 @@ function LandlordDashboard({ user }) {
         .insert([
           {
           title: sanitize(title),
-          location_slug: location.toLowerCase().replace(/\s+/g, "-"),
+          location: sanitize(normalizeLocation(finalLocation)),
+          location_slug: normalizeLocation(finalLocation).toLowerCase().replace(/\s+/g, "-"),
           price: parseInt(price),
           bedrooms: parseInt(bedrooms),
           landlord_phone: phone,
@@ -279,6 +317,7 @@ function LandlordDashboard({ user }) {
     // Reset form
     setTitle("")
     setLocation("")
+    setSelectedLocation("")
     setPrice("")
     setBedrooms("")
     setPhone("")
@@ -320,8 +359,12 @@ function LandlordDashboard({ user }) {
     return
   }
 
-  // refresh UI
-  fetchMyHouses() // or loadListings depending on your file
+  // ✅ update UI properly
+  setHouses(prev =>
+    prev.map(h =>
+      h.id === id ? { ...h, status: newStatus } : h
+    )
+  )
   }
 
   // Edit listing
@@ -422,10 +465,24 @@ function LandlordDashboard({ user }) {
           onChange={(e) => setTitle(e.target.value)} style={input} 
         />
 
-        <input placeholder="Location eg; WESTLANDS, NAIROBI "
-          value={location}
-          onChange={(e) => setLocation(e.target.value)} style={input} 
-        />
+        <div style={{ marginTop: "15px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#333" }}>
+            Ward/Location <span style={{ color: "red" }}>*</span>
+          </label>
+          <p style={{ fontSize: "13px", color: "#666", marginBottom: "10px" }}>
+            Click on the map below to select your ward, or type it here:
+          </p>
+          <input 
+            placeholder="Select ward from map or enter location (e.g., Westlands, Lavington)"
+            value={selectedLocation || location}
+            onChange={(e) => setLocation(e.target.value)}
+            style={{
+              ...input,
+              borderColor: (!selectedLocation && !location) ? "#ff6b6b" : "#ccc",
+              borderWidth: "2px"
+            }}
+          />
+        </div>
 
         <input placeholder="Price"
           value={price}

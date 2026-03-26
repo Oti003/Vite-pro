@@ -80,9 +80,12 @@ function App() {
         <Route
           path="/admin"
           element={
-            user && user.email === ADMIN_EMAIL
-              ? <Admin user={user} />
-              : <Navigate to="/" />
+            user
+              ? (user.email === ADMIN_EMAIL
+                  ? <Admin user={user} />
+                  : <Navigate to="/" />
+                )
+              : <Navigate to="/login" />
           }
         />
 

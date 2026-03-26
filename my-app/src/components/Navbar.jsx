@@ -134,7 +134,7 @@ function Navbar({ user }) {
                   }}
                   style={dashBoardSlot}
                 >
-                  Dashboard
+                  Landlord Dashboard
                 </button>
               )}
 
@@ -147,7 +147,7 @@ function Navbar({ user }) {
                   }}
                   style={adminSlot}
                 >
-                  Admin
+                  Admin Dashboard
                 </button>
               )}
 

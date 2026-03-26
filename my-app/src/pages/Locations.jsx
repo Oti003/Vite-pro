@@ -8,7 +8,7 @@ const slugify = (name) => name.toLowerCase().replace(/[\s_]+/g, "-")
 
 function Locations() {
   const navigate = useNavigate()
-
+  const [selectedLocation, setSelectedLocation] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCounty, setSelectedCounty] = useState(null)
 
@@ -150,6 +150,9 @@ function Locations() {
               if (found) handleCountyClick(found)
             }}
           />
+          <KenyaMap onSelectLocation={setSelectedLocation} />
+
+          <p>Selected: {selectedLocation}</p>
         </div>
       )}
      

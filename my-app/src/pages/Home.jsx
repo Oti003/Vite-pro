@@ -1,8 +1,20 @@
 import { useEffect, useState, useRef } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { supabase } from "../supabase"
+import { toast } from "react-hot-toast"
 import HouseCard from "../components/HouseCard"
 import HeroImage from "../assets/Hero_Image.jpg"
+
+// Normalize location text to handle different cases (case-insensitive)
+function normalizeLocation(location) {
+  if (!location) return ""
+  return location
+    .trim()
+    .toLowerCase()
+    .split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
 
 function Home({ user }) {
 
@@ -22,6 +34,15 @@ function Home({ user }) {
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
   const [bedroomsFilter, setBedroomsFilter] = useState("")
+
+  // Property Requests State
+  const [propertyRequests, setPropertyRequests] = useState([])
+  const [requestHouseType, setRequestHouseType] = useState("")
+  const [requestLocation, setRequestLocation] = useState("")
+  const [requestMaxRent, setRequestMaxRent] = useState("")
+  const [requestDeadline, setRequestDeadline] = useState("")
+  const [requestComments, setRequestComments] = useState({})
+  const [newComment, setNewComment] = useState("")
 
   const [debouncedLocation, setDebouncedLocation] = useState("")
   const [debouncedMinPrice, setDebouncedMinPrice] = useState("")
@@ -135,8 +156,10 @@ function Home({ user }) {
       .order("created_at",{ ascending:false })
       .range(reset ? 0 : offset, (reset ? 0 : offset) + limit - 1)
 
-    if (debouncedLocation.trim())
-      query = query.ilike("location", `%${debouncedLocation}%`)
+    if (debouncedLocation.trim()) {
+      const normalizedLocation = normalizeLocation(debouncedLocation)
+      query = query.ilike("location", `%${normalizedLocation}%`)
+    }
 
     if (debouncedMinPrice && !isNaN(debouncedMinPrice))
       query = query.gte("price", parseInt(debouncedMinPrice))
@@ -188,9 +211,137 @@ function Home({ user }) {
     setTrendingHouses(data || [])
   }
 
+  // ---------------- PROPERTY REQUESTS ----------------
+  async function loadPropertyRequests() {
+    const { data, error } = await supabase
+      .from("property_requests")
+      .select(`
+        *,
+        comments:request_comments(*)
+      `)
+      .order("created_at", { ascending: false })
+      .limit(10)
+
+    if (error) {
+      console.log("Error loading property requests:", error)
+      return
+    }
+
+    // Filter out expired requests and delete them from DB
+    if (data && data.length > 0) {
+      const now = new Date()
+      const expiredRequests = data.filter(req => {
+        const deadline = new Date(req.deadline)
+        const expireDate = new Date(deadline.getTime() + 24 * 60 * 60 * 1000) // Add 1 day
+        return now > expireDate
+      })
+
+      // Delete expired requests
+      if (expiredRequests.length > 0) {
+        const expiredIds = expiredRequests.map(r => r.id)
+        await supabase
+          .from("property_requests")
+          .delete()
+          .in("id", expiredIds)
+
+        // Filter out expired from display
+        const activeRequests = data.filter(req => {
+          const deadline = new Date(req.deadline)
+          const expireDate = new Date(deadline.getTime() + 24 * 60 * 60 * 1000)
+          return now <= expireDate
+        })
+        setPropertyRequests(activeRequests)
+        return
+      }
+    }
+
+    setPropertyRequests(data || [])
+  }
+
+  async function submitPropertyRequest(e) {
+    e.preventDefault()
+
+    if (!user) {
+      alert("Please sign in to post a property request")
+      navigate("/login")
+      return
+    }
+
+    if (!requestHouseType.trim() || !requestLocation.trim() || !requestMaxRent.trim() || !requestDeadline.trim()) {
+      alert("Please fill in all fields including deadline")
+      return
+    }
+
+    const { data, error } = await supabase
+      .from("property_requests")
+      .insert([
+        {
+          house_type: requestHouseType,
+          location: normalizeLocation(requestLocation),
+          max_rent: parseInt(requestMaxRent),
+          deadline: new Date(requestDeadline).toISOString(),
+          user_id: user?.id || null,
+          user_email: user?.email || "Anonymous"
+        }
+      ])
+
+    if (error) {
+      console.log("Error submitting request:", error)
+      toast.error("Request failed. Please try again.")
+      return
+    }
+
+    toast.success("Property request posted successfully!")
+
+    // Reset form
+    setRequestHouseType("")
+    setRequestLocation("")
+    setRequestMaxRent("")
+    setRequestDeadline("")
+
+    // Reload requests
+    loadPropertyRequests()
+  }
+
+  async function submitComment(requestId, commentText) {
+    if (!commentText.trim()) {
+      toast.error("Comment cannot be empty")
+      return
+    }
+
+    if (!user) {
+      toast.error("Sign in to post comment")
+      navigate("/login")
+      return
+    }
+
+    const { error } = await supabase
+      .from("request_comments")
+      .insert([
+        {
+          request_id: requestId,
+          comment: commentText,
+          user_id: user?.id || null,
+          user_email: user?.email || "Anonymous",
+          user_type: user ? "landlord" : "anonymous"
+        }
+      ])
+
+    if (error) {
+      console.log("Error submitting comment:", error)
+      toast.error("Comment failed. Please try again.")
+      return
+    }
+
+    toast.success("Comment posted successfully")
+    setNewComment("")
+    loadPropertyRequests() // Reload to get updated comments
+  }
+
   // ---------------- INITIAL LOAD ----------------
   useEffect(()=>{
     fetchFeatured()
+    loadPropertyRequests()
   },[])
 
   useEffect(()=>{
@@ -458,8 +609,7 @@ function Home({ user }) {
           <h2>No houses found</h2>
           <p 
           style={{ color: "#666",
-            marginTop: "10px",
-            mar
+            marginTop: "10px"
            }}>
             Try adjusting your filters or explore other locations
           </p>
@@ -685,6 +835,282 @@ function Home({ user }) {
         </div>
      
       <hr />
+
+      {/* PROPERTY REQUESTS SECTION */}
+      <div
+        style={{
+          padding: "20px 40px",
+          background: "#f8f9fa",
+          borderTop: "1px solid #e9ecef",
+          borderBottom: "1px solid #e9ecef"
+        }}
+      >
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <h2 style={{ textAlign: "center", marginBottom: "12px", color: "#333" }}>
+            🏠 Property Requests
+          </h2>
+          <p style={{ textAlign: "center", marginBottom: "15px", color: "#666", fontSize: "16px" }}>
+            Can't find what you're looking for? Post a request and let landlords/agents respond!
+          </p>
+
+          {/* Request Form */}
+          {user ? (
+            <form
+              onSubmit={submitPropertyRequest}
+              style={{
+                background: "white",
+                padding: "18px",
+                borderRadius: "16px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                marginBottom: "20px",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "15px",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+            <p style={{ margin: "0 10px 0 0", fontWeight: "500", color: "#333" }}>
+              I'm looking for
+            </p>
+            <input
+              type="text"
+              placeholder="house type (e.g., 2BR apartment, villa)"
+              value={requestHouseType}
+              onChange={(e) => setRequestHouseType(e.target.value)}
+              style={{
+                padding: "12px 16px",
+                border: "2px solid #e1e5e9",
+                borderRadius: "8px",
+                fontSize: "14px",
+                minWidth: "200px",
+                flex: "1"
+              }}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Location (e.g., Westlands, Karen)"
+              value={requestLocation}
+              onChange={(e) => setRequestLocation(e.target.value)}
+              style={{
+                padding: "12px 16px",
+                border: "2px solid #e1e5e9",
+                borderRadius: "8px",
+                fontSize: "14px",
+                minWidth: "180px",
+                flex: "1"
+              }}
+              required
+            />
+            <p style={{ margin: "0 10px", fontWeight: "500", color: "#333" }}>
+              in
+            </p>
+            <input
+              type="number"
+              placeholder="Max Rent (KSh)"
+              value={requestMaxRent}
+              onChange={(e) => setRequestMaxRent(e.target.value)}
+              style={{
+                padding: "12px 16px",
+                border: "2px solid #e1e5e9",
+                borderRadius: "8px",
+                fontSize: "14px",
+                minWidth: "140px",
+                flex: "1"
+              }}
+              required
+            />
+            <p style={{ margin: "0 10px", fontWeight: "500", color: "#333" }}>
+              by
+            </p>
+            <input
+              type="date"
+              placeholder="Deadline (e.g., 4 Apr 26)"
+              value={requestDeadline}
+              onChange={(e) => setRequestDeadline(e.target.value)}
+              style={{
+                padding: "12px 16px",
+                border: "2px solid #e1e5e9",
+                borderRadius: "8px",
+                fontSize: "14px",
+                minWidth: "140px",
+                flex: "1"
+              }}
+              required
+            />
+            <button
+              type="submit"
+              style={{
+                padding: "12px 24px",
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "600",
+                minWidth: "120px"
+              }}
+            >
+              Post Request
+            </button>
+            </form>
+          ) : (
+            <div
+              style={{
+                background: "white",
+                padding: "30px",
+                borderRadius: "16px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                marginBottom: "20px",
+                textAlign: "center"
+              }}
+            >
+              <p style={{ fontSize: "16px", color: "#666", marginBottom: "15px" }}>
+                Sign in to post a property request
+              </p>
+              <button
+                onClick={() => navigate("/login")}
+                style={{
+                  padding: "12px 24px",
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  fontSize: "16px"
+                }}
+              >
+                Sign In
+              </button>
+            </div>
+          )}
+
+          {/* Display Requests */}
+          <div style={{ display: "grid", gap: "12px" }}>
+            {propertyRequests.map((request) => (
+              <div
+                key={request.id}
+                style={{
+                  background: "white",
+                  padding: "16px",
+                  borderRadius: "12px",
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                  border: "1px solid #e1e5e9"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <h4 style={{ margin: 0, color: "#333" }}>
+                    Looking for: {request.house_type}
+                  </h4>
+                  <span style={{ fontSize: "12px", color: "#666" }}>
+                    {new Date(request.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <p style={{ margin: "5px 0", color: "#555" }}>
+                  📍 Location: {request.location}
+                </p>
+                <p style={{ margin: "5px 0", color: "#555" }}>
+                  💰 Max Rent: KSh {request.max_rent.toLocaleString()}
+                </p>
+                <p style={{ margin: "5px 0 8px", color: "#555" }}>
+                  📅 Deadline: {new Date(request.deadline).toLocaleDateString('en-US', { 
+                    day: 'numeric', 
+                    month: 'short', 
+                    year: '2-digit' 
+                  })}
+                </p>
+                <p style={{ margin: "5px 0 8px", fontSize: "13px", color: "#777" }}>
+                  Posted by: {request.user_email}
+                </p>
+
+                {/* Comments Section */}
+                <div style={{ borderTop: "1px solid #e1e5e9", paddingTop: "10px" }}>
+                  <h5 style={{ margin: "0 0 6px 0", color: "#333" }}>Comments from Landlords</h5>
+
+                  {/* Display existing comments */}
+                  {request.comments && request.comments.length > 0 ? (
+                    <div style={{ marginBottom: "8px" }}>
+                      {request.comments.map((comment, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: "#f8f9fa",
+                            padding: "10px",
+                            borderRadius: "6px",
+                            marginBottom: "6px",
+                            borderLeft: "3px solid #2563eb"
+                          }}
+                        >
+                          <p style={{ margin: "0 0 5px", fontSize: "14px", color: "#333" }}>
+                            {comment.comment}
+                          </p>
+                          <small style={{ color: "#666" }}>
+                            {comment.user_email} • {new Date(comment.created_at).toLocaleDateString()}
+                          </small>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: "14px", color: "#666", marginBottom: "8px" }}>
+                      No comments yet. Be the first to respond!
+                    </p>
+                  )}
+
+                  {/* Add comment form */}
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      placeholder="Write a response..."
+                      value={requestComments[request.id] || ""}
+                      onChange={(e) => setRequestComments(prev => ({
+                        ...prev,
+                        [request.id]: e.target.value
+                      }))}
+                      style={{
+                        flex: 1,
+                        padding: "6px 10px",
+                        border: "1px solid #ddd",
+                        borderRadius: "6px",
+                        fontSize: "14px"
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (requestComments[request.id]?.trim()) {
+                          submitComment(request.id, requestComments[request.id])
+                          setRequestComments(prev => ({
+                            ...prev,
+                            [request.id]: ""
+                          }))
+                        }
+                      }}
+                      style={{
+                        padding: "6px 14px",
+                        background: "#10b981",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "14px"
+                      }}
+                    >
+                      Comment
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {propertyRequests.length === 0 && (
+            <p style={{ textAlign: "center", color: "#666", marginTop: "10px" }}>
+              No property requests yet. Be the first to post one!
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* BOTTOM ACTION BAR */}
       <div
